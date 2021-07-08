@@ -42,18 +42,18 @@ In case that the bag contains also images, those will be shown in the right side
   
     - *[given_name]_scans*. It will contain a list of all the exported scans. Each range array is accompanied with an id and a timestamp. 
     
-    *[id, timestamp, range_array(r1, r2, ..., rX)]*
+      *[id, timestamp, range_array(r1, r2, ..., rX)] in which r0, r1, ..., rX \subset [0, inf] meters*
     
     - *[given_name]_labels*. It will contain a list of all the exported labeled scans. Each label array is accompanied with an id and a timestamp that can be used to match the data with the other files. A label consists on an array, of the same length of the range array, in which each range of the scan is classified in two classes: 0-> no person, 1-> person.
     
-    *[id, timestamp, label_array(c0, c1, ..., cX)]* 
+      *[id, timestamp, label_array(c0, c1, ..., cX)] in which c0, c1, ..., cX is equals to 1 is belong to a person. 0 otherwise* 
     
     - *[given_name]_circles*. It contains all the circles that represent the people labeled for each scan. Again and id and a timestamp for each scan is included along with a list of circles. For each circle we provide:
       - A person id that is mantained along the scans. 
       - The x,y position of the circle center (with origin in the scan frame).
       - And the circle radius.
       
-      *[id, timestamp, circles_array()]*
+      *[id, timestamp, circles_array(cir1, ..., cirX)] in which each circle contains [person_id, x, y, radius]*
   
 - Finally, we have the "Quit" option to exit the application.
 
