@@ -37,16 +37,23 @@ In case that the bag contains also images, those will be shown in the right side
   - To save a new bag file ("Save bag file..."). this bag will contain the laser scan of the primary bag, the TF topic in case it exists, and two new additional topics:
     - **/scan/people** [*people_msgs/People*]. Topic with the positions and ids of the people detected.
     - **/scan/people/markers** [*visualization_msgs/MarkerArray*]. For RViz visualization purposes.
+    
   - To export the data in different formats ("Export..." option). The available formats are: CSV, JSON, NUMPY or MAT. In all cases, three files will be created:
+  
     - *[given_name]_scans*. It will contain a list of all the exported scans. Each range array is accompanied with an id and a timestamp. 
-    [id, timestamp, range_array(r1, r2, ..., rX)]
+    
+    *[id, timestamp, range_array(r1, r2, ..., rX)]*
+    
     - *[given_name]_labels*. It will contain a list of all the exported labeled scans. Each label array is accompanied with an id and a timestamp that can be used to match the data with the other files. A label consists on an array, of the same length of the range array, in which each range of the scan is classified in two classes: 0-> no person, 1-> person.
-    [id, timestamp, label_array(c0, c1, ..., cX)]. 
+    
+    *[id, timestamp, label_array(c0, c1, ..., cX)]* 
+    
     - *[given_name]_circles*. It contains all the circles that represent the people labeled for each scan. Again and id and a timestamp for each scan is included along with a list of circles. For each circle we provide:
       - A person id that is mantained along the scans. 
       - The x,y position of the circle center (with origin in the scan frame).
       - And the circle radius.
-      [id, timestamp, circles_array()]
+      
+      *[id, timestamp, circles_array()]*
   
 - Finally, we have the "Quit" option to exit the application.
 
@@ -63,7 +70,7 @@ On this panel, the points of the laser scan (in red color) are represented in a 
 
 ### Bottom set of controls
 
-![](https://github.com/robotics-upo/laserscan_labeler/blob/master/images/bottom_buttons2.jpg)
+![](https://github.com/robotics-upo/laserscan_labeler/blob/master/images/botton_buttons2.jpg)
 
 - Reproduction menu. It has the classical buttons to play/pause the reproduction and to move forward and backward in steps of one scan.
 - The app automatically loads the first laser scan topic it finds. To run it on other topics (if they exist in the bag), use the scan topic selector.
