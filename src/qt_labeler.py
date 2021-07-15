@@ -371,21 +371,16 @@ class AppForm(QMainWindow):
         if ext == 'NUMPY (*.npy)':
             try:
                 scan_path = path + "_scans.npy"
-                arrays = {'names': np.array(scan_data['scans'].keys(), dtype=str),
-                    'values': np.array(scan_data['scans'].values(), dtype=float)}
-                #data_scan = list(scan_data['scans'].items())
-                #an_array = np.array(data_scan)
-                np.save(scan_path, arrays)
+                data_array = np.array(scan_data['scans'])
+                np.save(scan_path, data_array)
 
                 label_path = path + "_labels.npy"
-                arrays = {'names': np.array(label_data['labels'].keys(), dtype=str),
-                    'values': np.array(label_data['labels'].values(), dtype=float)}
-                np.save(label_path, arrays)
+                data_array = np.array(label_data['labels'])
+                np.save(label_path, data_array)
 
                 people_path = path + "_circles.npy"
-                arrays = {'names': np.array(people_data['people'].keys(), dtype=str),
-                    'values': np.array(people_data['people'].values(), dtype=float)}
-                np.save(label_path, arrays)
+                data_array = np.array(people_data['people'])
+                np.save(people_path, data_array)
 
             except:
                 text = "Numpy file could not be written"
