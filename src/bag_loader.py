@@ -146,7 +146,7 @@ class ScanBagLoader():
                 # Person
                 person = Person()
                 person.name = str(p['idp'])
-                #person.tagnames.append('labeled_person')
+                person.tagnames.append(str(p['type']))
                 person.reliability = 1.0
                 person.position.x = p['x']
                 person.position.y = p['y']
@@ -171,8 +171,16 @@ class ScanBagLoader():
                 marker.scale.z = 1.6
                 marker.color.r = 0.0
                 marker.color.g = 0.0
-                marker.color.b = 1.0
+                marker.color.b = 0.0
                 marker.color.a = 0.6
+                if(p['type'] == 1):
+                    marker.color.g = 1.0
+                elif(p['type'] == 2):
+                    marker.color.b = 1.0
+                elif(p['type'] == 3):
+                    marker.color.r = 1.0
+                    marker.color.g = 1.0
+
                 m_msg.markers.append(marker)
 
         return p_msg, m_msg

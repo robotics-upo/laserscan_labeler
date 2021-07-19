@@ -6,11 +6,11 @@ import copy
 
 class PersonRegion():
 
-    def __init__(self, x=0, y=0, r=0, person_id=0, scan_id=0):
+    def __init__(self, x=0, y=0, r=0, person_id=0, scan_id=0, type=1):
         self.person_id = person_id
         self.scan_id = scan_id
         #self.manager = manager
-        self.type = 1
+        self.type = type
         self.x = x
         self.y = y
         self.r = r
@@ -19,7 +19,7 @@ class PersonRegion():
         
 
     def get_data(self):
-        return (self.x, self.y, self.r, self.person_id, self.scan_id)
+        return (self.x, self.y, self.r, self.person_id, self.scan_id, self.type)
 
     def set_data(self, data):
         self.x, self.y, self.r, self.person_id, self.scan_id = data
@@ -29,9 +29,19 @@ class PersonRegion():
     
 
     def render(self):
-        c = mpatches.Circle((self.x, self.y), self.r, ec="none", color=(0,1,0))  # Green default region
-        #c.set_color((0,1,0)) # green
+        c = None
+        if self.type == 1: 
+            c = mpatches.Circle((self.x, self.y), self.r, ec="none", color=(0,1,0))  # Green default region
+        elif self.type == 2:
+            c = mpatches.Circle((self.x, self.y), self.r, ec="none", color=(0,0,1))  # Blue for type 2
+        elif self.type == 3:
+            c = mpatches.Circle((self.x, self.y), self.r, ec="none", color=(1,1,0))  # Yellow for type 3
+            
         return c
+
+
+    def change_type(self, newt):
+        self.type = newt
 
 
     def move(self, x, y, index):
@@ -66,11 +76,22 @@ class PeopleScan():
         else:
             print('Scan id of the person (%i) does not match this scan_id (%i). Not inserting...' % (person.scan.id, self.scan_id))
 
-    def insert(self, x, y, r):
+    def insert(self, x, y, r, type=1):
         self.people_id += 1
-        p = PersonRegion(x, y, r, self.people_id, self.scan_id)
+        p = PersonRegion(x, y, r, self.people_id, self.scan_id, type)
         self.people.append(p)
-        
+
+
+    def change_type(self, person_id):
+        idx = [i for i, p in enumerate(self.people) if p.person_id == person_id]
+        if idx is not None:
+            t = self.people[idx[0]].type
+            t = (t+1)%4
+            if t == 0:
+                t = 1
+            self.people[idx[0]].change_type(t)
+            print("Changing type of id: %i of scan %i, to type: %i" % (self.people[idx[0]].person_id, self.scan_id, t))
+
 
     def remove(self, person_id):
         person = [p for p in self.people if p.person_id == person_id]
@@ -110,7 +131,7 @@ class PeopleScan():
         for idx, s in enumerate(scan_xy):
             for p in self.people:
                 if(p.contains(s[0], s[1]) == True):
-                    self.labeled_scan[idx] = 1
+                    self.labeled_scan[idx] = p.type
         return np.array(self.labeled_scan)
 
 
@@ -143,6 +164,10 @@ class peopleManager():
         if id != -1:
             for i in range(scan_id, len(self.data)):
                 self.data[i].remove(id)
+
+
+    def change_type(self, scan_id, person_id):
+        self.data[scan_id].change_type(person_id)
 
 
     def update(self, index, scanxy):

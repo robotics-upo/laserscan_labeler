@@ -44,16 +44,17 @@ In case that the bag contains also images, those will be shown in the right side
     
       > *[id, timestamp, range_array(r1, r2, ..., rX)] in which r0, r1, ..., rX belongs to [0, inf] meters*
     
-    - *[given_name]_labels*. It will contain a list of all the exported labeled scans. Each label array is accompanied with an id and a timestamp that can be used to match the data with the other files. A label consists on an array, of the same length of the range array, in which each range of the scan is classified in two classes: 0-> no person, 1-> person.
+    - *[given_name]_labels*. It will contain a list of all the exported labeled scans. Each label array is accompanied with an id and a timestamp that can be used to match the data with the other files. A label consists on an array, of the same length of the range array, in which each range of the scan is classified in 4 classes: 0-> no person, 1-> person, and classes 2 and 3 are left for classifying other "things" (e.g. pushchairs) that the user would like to.
     
-      > *[id, timestamp, label_array(c0, c1, ..., cX)] in which c0, c1, ..., cX is equals to 1 if belongs to a person. 0 otherwise* 
+      > *[id, timestamp, label_array(c0, c1, ..., cX)] in which c0, c1, ..., cX belongs to [0,1,2,3]* 
     
     - *[given_name]_circles*. It contains all the circles that represent the people labeled for each scan. Again and id and a timestamp for each scan is included along with a list of circles. For each circle we provide:
       - A person id that is mantained along the scans. 
       - The x,y position of the circle center (with origin in the scan frame).
-      - And the circle radius.
+      - The circle radius.
+      - The type of the label. Besides people (class 1), other "things" can be labeled. Two more classes are available (classes 2 and 3).
       
-      > *[id, timestamp, circles_array(cir1, ..., cirX)] in which each circle contains [person_id, x, y, radius]*
+      > *[id, timestamp, circles_array(cir1, ..., cirX)] in which each circle contains [person_id, x, y, radius, type]*
   
 - Finally, we have the "Quit" option to exit the application.
 
@@ -66,6 +67,7 @@ On this panel, the points of the laser scan (in red color) are represented in a 
 - Click and drag a circle to move it over the scan area.
 - Right clicking a circle deletes it (from that scan on).
 - Using the scroll wheel over a circle enlarges or shrinks its radius.
+- Optionally, we can change the class of the label by clicking in the circle with the middle button of the mouse. We can change between the different classes available: green color for people - class 1 by default, blue color - class 2, yellow color - class 3. It is recommended to use class 1 for people, and the other two classes for other stuff that the user would like to label. 
 
 
 ### Bottom set of controls
@@ -88,9 +90,6 @@ Besides the reproduction buttons to play/pause and move step forward and backwar
 
 ### Person Tracking
 
-Each person circle will try to track the movement of the person between consecutive scans by computing the average point of the points located inside the circle.
+Each person circle (or other class) will try to track the movement of the person between consecutive scans by computing the average point of the points located inside the circle.
 At any moment, the reproduction can be paused and moved backwards and the circles can be modified, deleted or created. 
 
-## TODO
-
-* The app currently only offers binary labeling (0=default, 1=in a marked region). This could be extended to label more classes. 

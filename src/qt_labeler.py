@@ -118,7 +118,7 @@ class AppForm(QMainWindow):
                 yp = (p.y - 0.5) * self.data.range_max*2.0
                 rp = p.r * self.data.range_max*2.0 
                 #print("------ x:", xp, "y:", yp, "r:", rp, "-----")
-                scanp['circles'].append({'idp': p.person_id, 'x': xp, 'y': yp, 'r': rp}) 
+                scanp['circles'].append({'idp': p.person_id, 'x': xp, 'y': yp, 'r': rp, 'type': p.type}) 
             people_data['people'].append(scanp)
 
         scan_topic = self.topicsCB.currentText()
@@ -328,7 +328,7 @@ class AppForm(QMainWindow):
                 yp = (p.y - 0.5) * self.data.range_max*2.0
                 rp = p.r * self.data.range_max*2.0 
                 #print("------ x:", xp, "y:", yp, "r:", rp, "-----")
-                scanp['circles'].append({'idp': p.person_id, 'x': xp, 'y': yp, 'r': rp}) 
+                scanp['circles'].append({'idp': p.person_id, 'x': xp, 'y': yp, 'r': rp, 'type': p.type}) 
             people_data['people'].append(scanp)
 
         print("exporting data...")
@@ -473,10 +473,10 @@ class AppForm(QMainWindow):
                 self.dragging_id = None
                 self.people.removePerson(event.xdata, event.ydata, self.spinbox.value())
 
-            #elif event.button == 2:  # middle button mouse
-            #    print("NO END")
-            #    self.circles.current[self.dragging].end = None
-            #    self.dragging = None
+            elif event.button == 2:  # middle button mouse (change the type of the circle)
+                print("CHANGING TYPE")
+                self.people.change_type(self.spinbox.value(), self.dragging_id)
+                self.dragging = None
             else:
                 print("MOVING")
                 index = self.spinbox.value()
