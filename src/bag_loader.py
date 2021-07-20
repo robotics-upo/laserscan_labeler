@@ -1,3 +1,6 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*- 
+
 import rosbag
 import rospy
 from people_msgs.msg import People, Person
@@ -195,6 +198,9 @@ class ImageBagLoader():
 
         self.images = []
         self.timeStamps = []
+
+        self.width = None
+        self.height = None
         
 
     def getImageTopics(self):
@@ -226,4 +232,7 @@ class ImageBagLoader():
             self.timeStamps.append(t)
         self.bag.close()
         self.length = len(self.images)
+        height, width, = self.images[0].shape
+        self.width = width
+        self.height = height
         print("Loaded %d image messages" % self.length)

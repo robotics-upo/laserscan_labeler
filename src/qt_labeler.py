@@ -1,7 +1,6 @@
+#!/usr/bin/python3
 # -*- coding: utf-8 -*- 
-"""
-python qt_labeler.py BAG_PATH TOPIC_NAME
-"""
+
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *  
@@ -16,6 +15,7 @@ import signal
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import scipy.io as sio
+import cv2
 
 from bag_loader import ScanBagLoader, ImageBagLoader
 from labeling import *
@@ -569,10 +569,22 @@ class AppForm(QMainWindow):
 
             self.img_index += min_i
 
+
             image = QImage(self.img_data.images[self.img_index].data, self.img_data.images[self.img_index].shape[1], 
-                self.img_data.images[self.img_index].shape[0], QImage.Format_RGB888).rgbSwapped()
-            self.pic.setPixmap(QPixmap(image))
-            #self.pic.setGeometry(40, 40, self.img_data.images[self.img_index].shape[1], self.img_data.images[self.img_index].shape[0])
+                self.img_data.images[self.img_index].shape[0], QImage.Format_Grayscale8)  #, QImage.Format_RGB888) #.rgbSwapped()
+
+            w = 640 #self.img_data.images[self.img_index].shape[1]
+            h = 480 #self.img_data.images[self.img_index].shape[0]
+            pixmap = QPixmap(image)
+            self.pic.resize(QSize(w,h))
+            # self.pic.resize(self.img_data.images[self.img_index].shape[1], self.img_data.images[self.img_index].shape[0])
+            # w = self.pic.width() # min(pixmap.width(),  self.pic.maximumWidth()) 
+            # h = self.pic.height() #min(pixmap.height(), self.pic.maximumHeight())
+            pixmap = pixmap.scaled(QSize(w, h), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            self.pic.setScaledContents(True)
+            
+            self.pic.setPixmap(pixmap)
+            
             self.pic.show() 
             self.img_topic_label.setVisible(True)
             self.imgTopicsCB.setVisible(True)

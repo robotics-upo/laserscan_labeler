@@ -1,3 +1,6 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*- 
+
 import numpy as np
 from matplotlib.collections import PatchCollection
 import matplotlib.patches as mpatches
