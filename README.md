@@ -8,7 +8,17 @@ Based on the scan labeler of Joseph Duchesne (https://github.com/josephduchesne/
 
 ## Prereqs
 
-It should work on any version of Ubuntu with ROS (from 'Kinetic' distro onwards) and python-qt5.
+The tool is implemented using Python 3, PyQt5 and ROS Noetic.
+For previous ROS distros not using Python 3, a virtual environment may be employed.
+E.g.:
+
+```python
+python3 -m venv ~/VirtualEnvs/laserscan_labeler
+. ~/VirtualEnvs/laserscan_labeler/bin/activate
+python -m pip install --upgrade pip wheel setuptools
+pip install rospkg numpy matplotlib PyQt5 pyyaml scipy opencv-python-headless pycryptodomex gnupg lz4
+```
+
 Other Python deps required:
 * numpy
 * matplotlib
