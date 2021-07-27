@@ -688,10 +688,11 @@ class AppForm(QMainWindow):
                 self.people.update(c, scanxy)
         
         else:
-            self.record_button.setStyleSheet("color : black")
-            self.record_button.setText("Start REC")
-            self.init_scan = 0
-            self.recording = False
+            self.people.update(value, None)
+            #self.record_button.setStyleSheet("color : black")
+            #self.record_button.setText("Start REC")
+            #self.init_scan = 0
+            #self.recording = False
 
         self.current_index = value
         self.on_draw()
@@ -783,14 +784,17 @@ class AppForm(QMainWindow):
         # 
         self.prev_button = QPushButton('\u23EA') #u'23EA'
         self.prev_button.clicked.connect(self.prev) 
+        self.prev_button.setFocusPolicy(Qt.StrongFocus)
         self.prev_button.setEnabled(False)
 
         self.play_button = QPushButton('\u23EF') #\u23EF #u"▶"
         self.play_button.clicked.connect(self.play)
+        self.play_button.setFocusPolicy(Qt.StrongFocus)
         self.play_button.setEnabled(False)
 
         self.next_button = QPushButton('\u23E9') #u'23E9'  u'23F5'
         self.next_button.clicked.connect(self.next)
+        self.next_button.setFocusPolicy(Qt.StrongFocus)
         self.next_button.setEnabled(False)
         
         topic_label = QLabel("Topic:")

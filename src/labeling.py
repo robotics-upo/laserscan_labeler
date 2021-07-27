@@ -180,6 +180,7 @@ class peopleManager():
             print("filling %i scans with empty people" % (index - len(self.data)))
             for r in range(len(self.data), index+1):
                 self.data.append(PeopleScan())
+            print("Current total scans labeled: ", len(self.data))
 
         else:
             ps = copy.deepcopy(self.data[index-1])
