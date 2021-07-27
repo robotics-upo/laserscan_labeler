@@ -58,7 +58,7 @@ class AppForm(QMainWindow):
         self.data = None
         self.create_menu()
         self.create_main_frame()
-        self.setChildrenFocusPolicy(Qt.NoFocus)
+        #self.setChildrenFocusPolicy(Qt.NoFocus)
 
         self.on_draw()
 
@@ -564,9 +564,10 @@ class AppForm(QMainWindow):
                 for i in range(-10, 11): #range of 10 timesteps if we pass scans 10 by 10 (shift+arrow)
                     if (self.img_index+i) >= 0 and (self.img_index+i)<len(self.img_data.timeStamps):
                         img_t = self.img_data.timeStamps[self.img_index+i]
-                        t = abs((scan_t - img_t).to_sec())
-                        if(t<min_t):
-                            min_t = t
+                        #t = abs((scan_t - img_t).to_sec())
+                        t = (scan_t - img_t).to_sec()
+                        if(t > 0 and t<min_t):
+                            min_t = copy.deepcopy(t)
                             min_i = copy.deepcopy(i)
 
             self.img_index += min_i
@@ -681,10 +682,16 @@ class AppForm(QMainWindow):
             scanxy = self.data.get_cartesian(value)
             self.people.update(value, scanxy)
 
-        elif count > 1 and value < self.data.length:
+        elif count > 1 and count <= 10 and value < self.data.length:
             for c in range(self.current_index+1, value+1):
                 scanxy = self.data.get_cartesian(c)
                 self.people.update(c, scanxy)
+        
+        else:
+            self.record_button.setStyleSheet("color : black")
+            self.record_button.setText("Start REC")
+            self.init_scan = 0
+            self.recording = False
 
         self.current_index = value
         self.on_draw()
@@ -798,7 +805,7 @@ class AppForm(QMainWindow):
         self.spinbox.setRange(0, 0)
         self.spinbox.setValue(0)
         self.spinbox.valueChanged.connect(self.valueChanged)
-        self.spinbox.setFocusPolicy(Qt.NoFocus)
+        #self.spinbox.setFocusPolicy(Qt.NoFocus)
 
         total_frames = " of # scans"
         self.total_label = QLabel(total_frames)

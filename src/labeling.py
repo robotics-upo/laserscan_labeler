@@ -174,32 +174,40 @@ class peopleManager():
 
 
     def update(self, index, scanxy):
-        ps = copy.deepcopy(self.data[index-1])
-        ps.scan_id = index
-        #print("update. people in scan", index-1, ":", len(self.data[index-1].people))
-        for c in ps.people:
-            x = 0
-            y = 0
-            count = 0
-            #print("prev position. x:", c.x, "y:", c.y)
-            for p in scanxy:
-                if c.contains(p[0], p[1]):
-                    x = x + p[0]
-                    y = y + p[1]
-                    count += 1
-            #compute new center
-            if(count > 0):
-                x = x/count
-                y = y/count
-                c.move(x, y, index)
-                #print("new position. x:", c.x, "y:", c.y)
-        #print("update. people in scan", index, ":", len(ps.people))
-        if index >= len(self.data):
-            # add new PeopleScan
-            self.data.append(ps)
+
+        # in case we jump (lot of steps) to start for an advanced frame
+        if index > len(self.data)+1:
+            print("filling %i scans with empty people" % (index - len(self.data)))
+            for r in range(len(self.data), index+1):
+                self.data.append(PeopleScan())
+
         else:
-            # udpate the PeopleScan if it was already played
-            self.data[index] = ps
+            ps = copy.deepcopy(self.data[index-1])
+            ps.scan_id = index
+            #print("update. people in scan", index-1, ":", len(self.data[index-1].people))
+            for c in ps.people:
+                x = 0
+                y = 0
+                count = 0
+                #print("prev position. x:", c.x, "y:", c.y)
+                for p in scanxy:
+                    if c.contains(p[0], p[1]):
+                        x = x + p[0]
+                        y = y + p[1]
+                        count += 1
+                #compute new center
+                if(count > 0):
+                    x = x/count
+                    y = y/count
+                    c.move(x, y, index)
+                    #print("new position. x:", c.x, "y:", c.y)
+            #print("update. people in scan", index, ":", len(ps.people))
+            if index >= len(self.data):
+                # add new PeopleScan
+                self.data.append(ps)
+            else:
+                # udpate the PeopleScan if it was already played
+                self.data[index] = ps
 
 
     def drag(self, scan_id, x, y):
