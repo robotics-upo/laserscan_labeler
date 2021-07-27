@@ -12,6 +12,7 @@ import math
 import matplotlib
 import sys, os, random
 import signal
+import copy
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import scipy.io as sio
@@ -555,17 +556,18 @@ class AppForm(QMainWindow):
         # if we have images to show...
         if(self.show_images == True):
 
-            #look for the closest image to the scan based on the timestamps
-            scan_t = self.data.timeStamps[index]
-            min_t = 5000
             min_i = 0
-            for i in range(-10, 9): #range of 10 timesteps if we pass scans 10 by 10 (shift+arrow)
-                if (self.img_index+i) >= 0 and (self.img_index+i)<len(self.img_data.timeStamps):
-                    img_t = self.img_data.timeStamps[self.img_index+i]
-                    t = abs((scan_t - img_t).to_sec())
-                    if(t<min_t):
-                        min_t = t
-                        min_i = i
+            if self.data is not None:
+                #look for the closest image to the scan based on the timestamps
+                scan_t = self.data.timeStamps[index]
+                min_t = 999999
+                for i in range(-10, 11): #range of 10 timesteps if we pass scans 10 by 10 (shift+arrow)
+                    if (self.img_index+i) >= 0 and (self.img_index+i)<len(self.img_data.timeStamps):
+                        img_t = self.img_data.timeStamps[self.img_index+i]
+                        t = abs((scan_t - img_t).to_sec())
+                        if(t<min_t):
+                            min_t = t
+                            min_i = copy.deepcopy(i)
 
             self.img_index += min_i
 
