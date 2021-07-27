@@ -799,6 +799,7 @@ class AppForm(QMainWindow):
         self.topicsCB = QComboBox()
         #self.topic_edit.setMaxLength(10)
         self.topicsCB.currentIndexChanged.connect(self.topicsComboChanged)
+        self.topicsCB.setFocusPolicy(Qt.NoFocus)
 
         spinbox_label = QLabel('Scan #')
         self.spinbox = QSpinBox()
