@@ -687,7 +687,7 @@ class AppForm(QMainWindow):
                 scanxy = self.data.get_cartesian(c)
                 self.people.update(c, scanxy)
         
-        else:
+        elif count > 10:
             self.people.update(value, None)
             #self.record_button.setStyleSheet("color : black")
             #self.record_button.setText("Start REC")
