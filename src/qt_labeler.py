@@ -308,13 +308,13 @@ class AppForm(QMainWindow):
                 'angle_increment': self.data.angle_increment}}       #'theta': self.data.theta.tolist()}
         
         scan_data['scans'] = []
-        for i in range(self.init_scan, self.spinbox.value()):
+        for i in range(self.init_scan, self.spinbox.value()+1):
             scan = {'id': i, 'timestamp': self.data.timeStamps[i].to_sec(), 'ranges': self.data.data[i].tolist()}
             scan_data['scans'].append(scan)
 
         
         label_data = {'labels': []}
-        for i in range(self.init_scan, self.spinbox.value()):
+        for i in range(self.init_scan, self.spinbox.value()+1):
             scanxy = self.data.get_cartesian(i)
             labels = self.people.data[i].getLabeledScan(scanxy)
             label = {'id': i, 'timestamp': self.data.timeStamps[i].to_sec(), 'label': labels.tolist()} #self.people.get_classes(self.data, i).tolist()
@@ -322,7 +322,7 @@ class AppForm(QMainWindow):
 
 
         people_data = {'people': []}
-        for i in range(self.init_scan, self.spinbox.value()):
+        for i in range(self.init_scan, self.spinbox.value()+1):
             scanp = {'id': i, 'timestamp': self.data.timeStamps[i].to_sec(), 'circles': []}
             for p in self.people.data[i].people:
                 xp = (p.x - 0.5) * self.data.range_max*2.0
