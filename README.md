@@ -88,15 +88,15 @@ On this panel, the points of the laser scan (in red color) are represented in a 
 - The app automatically loads the first laser scan topic it finds. To run it on other topics (if they exist in the bag), use the scan topic selector.
 - Scan indicator. This indicador shows the current index of the scan according to the total number of scans found in the indicated topic in the bag file. After the labeling process, the current scan number will be used as the final scan to be saved/exported. 
 - "Star REC" button. This button can be employed if we want to start the recording (to be saved later) from a particular number of scan and to discard all the previous scans.
-To use it, move the reproduction to the desired scan and press the "Start REC" button. The button will take the current scan number indicated in the scan indicator as the initial scan to be stored later. If the button is not used, the zero scan will be used as the initial by default.
+To use it, move the reproduction to the desired scan (you can directly write the number in the scan indicator) and press the "Start REC" button. The button will take the current scan number indicated in the scan indicator as the initial scan to be stored later. If the button is not used, the zero scan will be used as the initial by default.
 - Player velocity slider. It allows to change the velocity of reproduction of the sucesive scans when we are playing the bag. 
+
 
 ### Time travel options
 
 Besides the reproduction buttons to play/pause and move step forward and backward, we have other options:
 - Press space to play/pause the reproduction.
-- Use the arrow keys of the keyboard (left/right) to move forward/backward in time.
-- Besides, if the shift key is pressed along with the arrow keys, the scan will travel in time in steps of 10 scans. 
+- Use the arrow keys of the keyboard (left/right) to move forward/backward in time. 
 
 ### Person Tracking
 
