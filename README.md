@@ -96,7 +96,7 @@ To use it, move the reproduction to the desired scan (you can directly write the
 
 Besides the reproduction buttons to play/pause and move step forward and backward, we have other options:
 - Press space to play/pause the reproduction.
-- Use the arrow keys of the keyboard (left/right) to move forward/backward in time. 
+- Use the arrow keys of the keyboard (up/down) to move forward/backward in time (with the focus on the scan indicador). 
 
 ### Person Tracking
 
