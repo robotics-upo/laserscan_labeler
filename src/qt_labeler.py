@@ -695,6 +695,8 @@ class AppForm(QMainWindow):
             #self.recording = False
 
         self.current_index = value
+        msg = ""
+        self.info_label.setText(msg)
         self.on_draw()
         #print("ValueChanged. Scan %i, people: %i" % (int(value), len(self.people.data[int(value)].people)))
 
