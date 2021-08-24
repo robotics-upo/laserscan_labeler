@@ -9,7 +9,27 @@ Based on the scan labeler of Joseph Duchesne (https://github.com/josephduchesne/
 ## Prereqs
 
 The tool is implemented using Python 3, PyQt5 and ROS Noetic.
-For previous ROS distros not using Python 3, a virtual environment may be employed.
+To run the tool in computers without the previous software, different options can be chosen:
+
+* By means of Conda:
+
+```python
+conda install mamba -n base -c conda-forge
+mamba create -n noetic python=3.8
+conda activate noetic
+conda config --env --add channels conda-forge
+conda config --env --add channels robostack
+conda config --env --set channel_priority strict
+mamba install ros-noetic-desktop ros-noetic-people-msgs scipy
+conda deactivate noetic
+conda activate noetic
+git clone git@github.com:robotics-upo/laserscan_labeler.git
+cd laserscan_labeler
+python src/qt_labeler.py
+```
+
+* By means of a virtual environment:
+
 E.g.:
 
 ```python
