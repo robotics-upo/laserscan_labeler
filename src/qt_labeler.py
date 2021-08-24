@@ -309,7 +309,8 @@ class AppForm(QMainWindow):
         
         scan_data['scans'] = []
         for i in range(self.init_scan, self.spinbox.value()+1):
-            scan = {'id': i, 'timestamp': self.data.timeStamps[i].to_sec(), 'ranges': self.data.data[i].tolist()}
+            ranges = np.round(self.data.data[i], decimals=3)
+            scan = {'id': i, 'timestamp': self.data.timeStamps[i].to_sec(), 'ranges': ranges.tolist()} #self.data.data[i].tolist()
             scan_data['scans'].append(scan)
 
         
@@ -325,9 +326,9 @@ class AppForm(QMainWindow):
         for i in range(self.init_scan, self.spinbox.value()+1):
             scanp = {'id': i, 'timestamp': self.data.timeStamps[i].to_sec(), 'circles': []}
             for p in self.people.data[i].people:
-                xp = (p.x - 0.5) * self.data.range_max*2.0
-                yp = (p.y - 0.5) * self.data.range_max*2.0
-                rp = p.r * self.data.range_max*2.0 
+                xp = np.round((p.x - 0.5) * self.data.range_max*2.0, decimals=3)
+                yp = np.round((p.y - 0.5) * self.data.range_max*2.0, decimals=3)
+                rp = np.round(p.r * self.data.range_max*2.0, decimals=3)
                 #print("------ x:", xp, "y:", yp, "r:", rp, "-----")
                 scanp['circles'].append({'idp': p.person_id, 'x': xp, 'y': yp, 'r': rp, 'type': p.type}) 
             people_data['people'].append(scanp)
@@ -392,11 +393,13 @@ class AppForm(QMainWindow):
 
         # CSV format
         if ext == 'CSV (*.csv)':
+            #dialect = csv.excel
+            #dialect.quoting = csv.QUOTE_NONE
             try:
                 scan_path = path + "_scans.csv"
                 with open(scan_path, "w") as outfile: 
                     csv_columns = ['id','timestamp','ranges']
-                    writer = csv.DictWriter(outfile, fieldnames=csv_columns)
+                    writer = csv.DictWriter(outfile, fieldnames=csv_columns) #, dialect=dialect
                     writer.writeheader()
                     for data in scan_data['scans']:
                         writer.writerow(data)
