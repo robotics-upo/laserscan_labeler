@@ -310,6 +310,7 @@ class AppForm(QMainWindow):
         scan_data['scans'] = []
         for i in range(self.init_scan, self.spinbox.value()+1):
             ranges = np.round(self.data.data[i], decimals=3)
+            ranges[np.isinf(ranges)] = self.data.true_range_max + 1 # we replace the inf values to (max_range + 1)
             scan = {'id': i, 'timestamp': self.data.timeStamps[i].to_sec(), 'ranges': ranges.tolist()} #self.data.data[i].tolist()
             scan_data['scans'].append(scan)
 
@@ -395,22 +396,36 @@ class AppForm(QMainWindow):
         if ext == 'CSV (*.csv)':
             #dialect = csv.excel
             #dialect.quoting = csv.QUOTE_NONE
+            #try:
+            scan_path = path + "_scans.csv"
+            with open(scan_path, "w") as outfile: 
+                csv_columns = ['id','timestamp','ranges']
+                #writer = csv.DictWriter(outfile, fieldnames=csv_columns) #, dialect=dialect
+                writer = csv.writer(outfile, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE, escapechar=' ')
+                writer.writerow(csv_columns)
+                for data in scan_data['scans']:
+                    row = []
+                    row.append(int(data['id']))
+                    row.append(data['timestamp']) 
+                    for item in data['ranges']:
+                        row.append(item)
+                    writer.writerow(row)
             try:
-                scan_path = path + "_scans.csv"
-                with open(scan_path, "w") as outfile: 
-                    csv_columns = ['id','timestamp','ranges']
-                    writer = csv.DictWriter(outfile, fieldnames=csv_columns) #, dialect=dialect
-                    writer.writeheader()
-                    for data in scan_data['scans']:
-                        writer.writerow(data)
-
                 label_path = path + "_labels.csv"
                 with open(label_path, "w") as outfile: 
                     csv_columns = ['id','timestamp','label']
-                    writer = csv.DictWriter(outfile, fieldnames=csv_columns)
-                    writer.writeheader()
+                    #writer = csv.DictWriter(outfile, fieldnames=csv_columns)
+                    #writer.writeheader()
+                    writer = csv.writer(outfile, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE, escapechar=' ')
+                    writer.writerow(csv_columns)
                     for data in label_data['labels']:
-                        writer.writerow(data)
+                        #writer.writerow(data)
+                        row = []
+                        row.append(int(data['id']))
+                        row.append(data['timestamp']) 
+                        for item in data['label']:
+                            row.append(item)
+                        writer.writerow(row)
 
                 people_path = path + "_circles.csv"
                 with open(people_path, "w") as outfile: 
