@@ -309,11 +309,12 @@ class AppForm(QMainWindow):
         
         scan_data['scans'] = []
         for i in range(self.init_scan, self.spinbox.value()+1):
+
+            ranges = np.round(self.data.data[i], decimals=3)
             # we replace the inf values to (max_range + 1)
             ranges[np.isinf(ranges)] = self.data.true_range_max + 1 
             # we check if there are nan values just in case
             ranges[np.isnan(ranges)] = self.data.true_range_max + 1
-            ranges = np.round(self.data.data[i], decimals=3)
             scan = {'id': i, 'timestamp': self.data.timeStamps[i].to_sec(), 'ranges': ranges.tolist()} #self.data.data[i].tolist()
             scan_data['scans'].append(scan)
 
