@@ -29,9 +29,13 @@ class ScanBagLoader():
         self.length = None
         self.range_max = None
         self.true_range_max = None
+        self.range_min = None
         self.angle_min = None
         self.angle_max = None
         self.angle_increment = None
+        self.time_increment = None
+        self.scan_time = None
+        self.tf_scan = 'laserscan'
         
     
     def getScanTopics(self):
@@ -71,6 +75,9 @@ class ScanBagLoader():
                 self.angle_min = msg.angle_min
                 self.angle_max = msg.angle_max
                 self.angle_increment = msg.angle_increment
+                self.range_min = msg.range_min
+                self.time_increment = msg.time_increment
+                self.scan_time = msg.scan_time
                 
             self.data.append(np.array(msg.ranges))
             self.timeStamps.append(t)
@@ -96,55 +103,82 @@ class ScanBagLoader():
 
 
 
-    def save_bag(self, people_dict, scan_topic, path):
+    def save_bag(self, people_dict, init_index, end_index, path):
 
         people_topic = '/scan/people'
         marker_topic = '/scan/people/markers'
-        init_t = people_dict['people'][0]['timestamp']
-        last_t = people_dict['people'][len(people_dict['people'])-1]['timestamp']
-        index = 0
+        #init_t = people_dict['people'][0]['timestamp']
+        #last_t = people_dict['people'][len(people_dict['people'])-1]['timestamp']
+
+        scan_msg = LaserScan()
+        scan_msg.angle_increment = self.angle_increment
+        scan_msg.angle_max = self.angle_max
+        scan_msg.angle_min = self.angle_min
+        scan_msg.time_increment = self.angle_increment
+        scan_msg.scan_time = self.scan_time
+        scan_msg.range_min = self.range_min
+        scan_msg.range_max = self.true_range_max
+        scan_msg.intensities = []
+
+        index = init_index
         #print('init_t', init_t)
         #print('last_t', last_t)
         with rosbag.Bag(path, 'w') as outbag:
-            for topic, msg, t in rosbag.Bag(self.path).read_messages():
 
-                if t.to_sec() >= init_t and t.to_sec() < last_t:
+            for people in people_dict['people']:
                 
-                    if topic == 'tf' or topic == '/tf':
-                        outbag.write(topic, msg, t)
+                scan_msg.ranges = self.data[index]
+                ts = self.timeStamps[index]
+                scan_msg.header.frame_id = self.tf_scan
+                scan_msg.header.stamp = ts #rospy.Time.from_sec(people['timestamp']) 
+                #sensor_msgs/LaserScan message
+                outbag.write(self.tf_scan, scan_msg, ts)
+                people_msg, marker_msg = self.build_messages(people['circles'], ts) #people['timestamp']
+                #people_msgs/People message
+                outbag.write(people_topic, people_msg, ts)
+                #visualization_makers/MarkerArray
+                outbag.write(marker_topic, marker_msg, ts)
 
-                    if topic == scan_topic or topic == ('/'+scan_topic):
-                        outbag.write(topic, msg, t)
+                index+=1
+            # for topic, msg, t in rosbag.Bag(self.path).read_messages():
 
-                        if index < len(people_dict['people']):
-                            people_msg, marker_msg = self.build_messages(people_dict, index, t, msg.header)
+            #     if t.to_sec() >= init_t and t.to_sec() < last_t:
+                
+            #         if topic == 'tf' or topic == '/tf':
+            #             outbag.write(topic, msg, t)
 
-                            #people_msgs/People message
-                            outbag.write(people_topic, people_msg, t)
+            #         if topic == scan_topic or topic == ('/'+scan_topic):
+            #             outbag.write(topic, msg, t)
 
-                            #visualization_makers/MarkerArray
-                            outbag.write(marker_topic, marker_msg, t)
+            #             if index < len(people_dict['people']):
+            #                 scan_msg, people_msg, marker_msg = self.build_messages(people_dict, index, t, msg.header)
 
-                        index += 1
+            #                 #people_msgs/People message
+            #                 outbag.write(people_topic, people_msg, t)
+
+            #                 #visualization_makers/MarkerArray
+            #                 outbag.write(marker_topic, marker_msg, t)
+
+            #             index += 1
             outbag.close()
 
 
 
-    def build_messages(self, dict, idx, ts, msg_header):
+    def build_messages(self, circles, time):
 
         #print("idx: %i, dict_len: %i" % (idx, len(dict['people'])))
-        people_list = dict['people'][idx]['circles']
-        print("people detected:", len(people_list))
+        #people_list = dict['people'][idx]['circles']
+        print("people detected:", len(circles))
         #print('t:', t)
         #print('header.stamp:', header.stamp)
         p_msg = People()
-        p_msg.header = msg_header
-        p_msg.header.stamp = ts
+        p_msg.header.stamp = time #rospy.Time.from_sec(time)
+        p_msg.header.frame_id = self.tf_scan
 
         m_msg = MarkerArray()
 
-        if len(people_list) > 0:
-            for p in people_list:
+        if len(circles) > 0:
+            for p in circles:
 
                 # Person
                 person = Person()
@@ -158,8 +192,8 @@ class ScanBagLoader():
                 
                 # Marker
                 marker = Marker()
-                marker.header = msg_header
-                marker.header.stamp = ts
+                marker.header.frame_id = self.tf_scan
+                marker.header.stamp = time #rospy.Time.from_sec(time)
                 marker.id = p['idp']
                 #marker.ns = ''
                 marker.type = 3 #cylinder

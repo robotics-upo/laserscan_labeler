@@ -110,9 +110,11 @@ class AppForm(QMainWindow):
         print(path)
 
 
+
+
     def save_bag_file(self, path):
         people_data = {'people': []}
-        for i in range(self.init_scan, self.spinbox.value()):
+        for i in range(self.init_scan, self.spinbox.value()+1):
             scanp = {'id': i, 'timestamp': self.data.timeStamps[i].to_sec(), 'circles': []}
             for p in self.people.data[i].people:
                 xp = (p.x - 0.5) * self.data.range_max*2.0
@@ -125,7 +127,7 @@ class AppForm(QMainWindow):
         scan_topic = self.topicsCB.currentText()
         self.info_label.setStyleSheet("color : orange")
         self.info_label.setText("Saving bag file...")
-        self.data.save_bag(people_data, scan_topic, path)
+        self.data.save_bag(people_data, self.init_scan, self.spinbox.value()+1, path)
         self.info_label.setStyleSheet("color : green")
         self.info_label.setText("Bag file saved successfully!")
 
