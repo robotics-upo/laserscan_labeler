@@ -329,16 +329,16 @@ class AppForm(QMainWindow):
             label_data['labels'].append(label)
 
 
-        people_data = {'people': []}
+        people_data = {"people": []}
         for i in range(self.init_scan, self.spinbox.value()+1):
-            scanp = {'id': i, 'timestamp': self.data.timeStamps[i].to_sec(), 'circles': []}
+            scanp = {"id": i, "timestamp": self.data.timeStamps[i].to_sec(), "circles": []}
             for p in self.people.data[i].people:
-                xp = np.round((p.x - 0.5) * self.data.range_max*2.0, decimals=3)
-                yp = np.round((p.y - 0.5) * self.data.range_max*2.0, decimals=3)
-                rp = np.round(p.r * self.data.range_max*2.0, decimals=3)
+                xp = np.round((p.x - 0.5) * self.data.range_max*2.0, decimals=2)
+                yp = np.round((p.y - 0.5) * self.data.range_max*2.0, decimals=2)
+                rp = np.round(p.r * self.data.range_max*2.0, decimals=2)
                 #print("------ x:", xp, "y:", yp, "r:", rp, "-----")
-                scanp['circles'].append({'idp': p.person_id, 'x': xp, 'y': yp, 'r': rp, 'type': p.type}) 
-            people_data['people'].append(scanp)
+                scanp["circles"].append({"idp": p.person_id, "x": xp, "y": yp, "r": rp, "type": p.type}) 
+            people_data["people"].append(scanp)
 
         print("exporting data...")
 
@@ -436,9 +436,9 @@ class AppForm(QMainWindow):
                 people_path = path + "_circles.csv"
                 with open(people_path, "w") as outfile: 
                     csv_columns = ['id','timestamp','circles']
-                    writer = csv.DictWriter(outfile, fieldnames=csv_columns)
+                    writer = csv.DictWriter(outfile, fieldnames=csv_columns, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE, escapechar=' ')
                     writer.writeheader()
-                    for data in people_data['people']:
+                    for data in people_data["people"]:
                         writer.writerow(data)
             except:
                 text = "CSV file could not be written"
