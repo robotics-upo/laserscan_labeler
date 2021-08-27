@@ -123,3 +123,23 @@ Besides the reproduction buttons to play/pause and move step forward and backwar
 Each person circle (or other class) will try to track the movement of the person between consecutive scans by computing the average point of the points located inside the circle.
 At any moment, the reproduction can be paused and moved backwards and the circles can be modified, deleted or created. 
 
+
+## Data processing
+
+A complementary tool based on terminal has been developed.
+This tool allows to manage the data provided by the laserscan_labeler in order to ease the conversion between formats, and/or the use of the data in learning processes. 
+
+The options that the tool presents are:
+
+```console
+1) Merge the data sessions (csv files) into formatted numpy files.
+2) Merge the data of multiple numpy files (output numpy files of option 1).
+3) Transform labeler output files (csv) to DROW dataset format (NOT FINISHED!).
+4) Transform old labeled files (csv) to new format.
+5) Generate a bag file from a set of csv session files.
+6) Concatenate bag files (not implemented yet).
+```
+
+To get started, run:
+
+`python src/data_management/data_management.py`
