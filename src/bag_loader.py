@@ -10,7 +10,6 @@ import numpy as np
 import math
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image, LaserScan
-import cv2
 
 
 
@@ -84,8 +83,8 @@ class ScanBagLoader():
         self.bag.close()
         self.length = len(self.data)
         print("Loaded %d laser scan messages" % self.length)
-        print("theta: ")
-        print(self.theta)
+        #print("theta: ")
+        #print(self.theta)
         #print("timestamps:")
         #print(self.timeStamps)
 
@@ -107,8 +106,6 @@ class ScanBagLoader():
 
         people_topic = '/scan/people'
         marker_topic = '/scan/people/markers'
-        #init_t = people_dict['people'][0]['timestamp']
-        #last_t = people_dict['people'][len(people_dict['people'])-1]['timestamp']
 
         scan_msg = LaserScan()
         scan_msg.angle_increment = self.angle_increment
@@ -121,8 +118,7 @@ class ScanBagLoader():
         scan_msg.intensities = []
 
         index = init_index
-        #print('init_t', init_t)
-        #print('last_t', last_t)
+        
         with rosbag.Bag(path, 'w') as outbag:
 
             for people in people_dict['people']:
@@ -133,6 +129,7 @@ class ScanBagLoader():
                 scan_msg.header.stamp = ts #rospy.Time.from_sec(people['timestamp']) 
                 #sensor_msgs/LaserScan message
                 outbag.write(self.tf_scan, scan_msg, ts)
+                print('people detected scan ', index, ': ', len(people['circles']))
                 people_msg, marker_msg = self.build_messages(people['circles'], ts) #people['timestamp']
                 #people_msgs/People message
                 outbag.write(people_topic, people_msg, ts)
@@ -166,11 +163,6 @@ class ScanBagLoader():
 
     def build_messages(self, circles, time):
 
-        #print("idx: %i, dict_len: %i" % (idx, len(dict['people'])))
-        #people_list = dict['people'][idx]['circles']
-        print("people detected:", len(circles))
-        #print('t:', t)
-        #print('header.stamp:', header.stamp)
         p_msg = People()
         p_msg.header.stamp = time #rospy.Time.from_sec(time)
         p_msg.header.frame_id = self.tf_scan
