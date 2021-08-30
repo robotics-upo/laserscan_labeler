@@ -2,20 +2,20 @@
 # This Python file uses the following encoding: utf-8
 
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import os
 import math
 import csv
 import json
 
-from numpy.core.defchararray import lstrip
+#from numpy.core.defchararray import lstrip
 import rosbag
 import rospy
 from sensor_msgs.msg import LaserScan
 from people_msgs.msg import People, Person
 from visualization_msgs.msg import MarkerArray, Marker
 
-from tensorflow.python.ops.numpy_ops.np_math_ops import isnan
+#from tensorflow.python.ops.numpy_ops.np_math_ops import isnan
 
 
 class LoadData:
@@ -49,6 +49,11 @@ class LoadData:
     def rphi_to_xy(self, r, phi):
         return r * np.cos(phi), r * np.sin(phi)  # -np.sin(phi)
 
+
+    def xy_to_rphi(self, x, y):
+        r = math.sqrt(x*x + y*y)
+        phi = math.atan2(y, x)
+        return [r, phi]
 
     def scan_to_xy(self, scan, thresh=None, fov=None):
         s = np.array(scan, copy=True)
@@ -383,6 +388,51 @@ class LoadData:
                 print("Stored file:", file_path)
 
 
+    def circles_to_drow(self, path):
+    
+        for file in sorted(os.listdir(path)):
+            if file.endswith('_circles.csv'):
+                print("Opening file:", file)
+                file_path = os.path.join(path, file)
+                ids, timestamp, circles = self.load_circles_csv_file(file_path)
+
+                #Now we need to transform our cartesian coordinates to polar
+                polar_circles = self.circles_to_polar(circles)
+
+                filename = str(file).replace('.csv', '_drow.wp')
+                file_path = os.path.join(path, filename)
+                with open(file_path, "w", newline='') as outfile:
+                    writer = csv.writer(outfile, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE, escapechar=' ')
+                    for (id, pc) in zip(ids, polar_circles):
+                        row = []
+                        row.append(int(id))
+                        #row.append(float(ts)) 
+                        row.append(pc)
+                        writer.writerow(row)
+
+                print("Stored file:", file_path)
+
+
+    def circles_to_polar(self, circles):
+        # circles is a np array of dictionaries:
+        # e.g.: [{"circles": [{'idp':2, 'x':8.83, 'y':2.0, 'r':0.4, 'type':1}, {'idp':3, 'x':0.5, 'y':-1.12, 'r':0.4, 'type':1}]}]
+        # Must be tranform to:
+        # [[r,phi],[r,phi]]
+        polar_cir = []
+        for circ in circles:
+            #print('circ:', circ)
+            circ_row = []
+            if len(circ['circles']) > 0:
+                for p in circ['circles']:
+                    polar = np.round(self.xy_to_rphi(p['x'], p['y']), decimals=3)
+                    circ_row.append(polar)
+
+            polar_cir.append(circ_row)
+
+        return polar_cir
+
+
+
 
     def csv_to_bag(self, scans_path, circles_path, path):
 
@@ -478,6 +528,7 @@ class LoadData:
         people_topic = '/scan/people'
         marker_topic = '/scan/people/markers'
 
+        # data of the frog laserscan
         scan_msg = LaserScan()
         scan_msg.angle_increment = 0.004363323096185923
         scan_msg.angle_max = 1.5664329528808594
@@ -489,29 +540,29 @@ class LoadData:
         scan_msg.intensities = []
         scan_msg.header.frame_id = 'laserscan'
 
-        #try:
-        bag_name = os.path.join(path, 'complete.bag')
-        with rosbag.Bag(bag_name, 'w') as outbag:
+        try:
+            bag_name = os.path.join(path, 'complete.bag')
+            with rosbag.Bag(bag_name, 'w') as outbag:
 
-            for i, ranges in enumerate(scans):
-                    
-                scan_msg.ranges = ranges
-                ts = rospy.Time.from_sec(scan_ts[i])
-                scan_msg.header.stamp = ts
-                #sensor_msgs/LaserScan message
-                outbag.write('laserscan', scan_msg, ts)
-                #print('people detected scan ', i, ': ', len(people['circles']))
-                people_msg, marker_msg = self.build_messages(people[i], ts, scan_msg.header.frame_id) 
-                #people_msgs/People message
-                outbag.write(people_topic, people_msg, ts)
-                #visualization_makers/MarkerArray
-                outbag.write(marker_topic, marker_msg, ts)
-            outbag.close()
+                for i, ranges in enumerate(scans):
+                        
+                    scan_msg.ranges = ranges
+                    ts = rospy.Time.from_sec(scan_ts[i])
+                    scan_msg.header.stamp = ts
+                    #sensor_msgs/LaserScan message
+                    outbag.write('laserscan', scan_msg, ts)
+                    #print('people detected scan ', i, ': ', len(people['circles']))
+                    people_msg, marker_msg = self.build_messages(people[i], ts, scan_msg.header.frame_id) 
+                    #people_msgs/People message
+                    outbag.write(people_topic, people_msg, ts)
+                    #visualization_makers/MarkerArray
+                    outbag.write(marker_topic, marker_msg, ts)
+                outbag.close()
 
-        #except:
-        #    print("-------------------------------------")
-        #    print('ERROR!!! Bag file could not be created!')
-        #    print("-------------------------------------")
+        except:
+            print("-------------------------------------")
+            print('ERROR!!! Bag file could not be created!')
+            print("-------------------------------------")
         print('')
         print('Bag succesfully recorded and stored in: ', bag_name)
 

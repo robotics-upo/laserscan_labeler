@@ -87,9 +87,11 @@ def merge_bags(dataloader):
 def to_drow(dataloader):
     print('')
     print('First, the input scan files will be transformed to drow format.')
-    path = input('Introduce the base directory in which your scans ([whatever]_scans.csv files) are: ')
-    dataloader.scan_to_drow(path)
-    #dataloader.circles_to_drow(path2)
+    spath = input('Introduce the base directory in which your scans ([whatever]_scans.csv files) are: ')
+    dataloader.scan_to_drow(spath)
+    print('Secondly, the people detections will be transformed to drow format.')
+    ppath = input('Introduce the base directory in which your detections ([whatever]_circles.csv files) are: ')
+    dataloader.circles_to_drow(ppath)
 
 
 def to_new_format(dataloader):
