@@ -15,7 +15,7 @@ def print_main_menu():
     print('DATA PREPROCESSING:')
     print('\t1) Merge the data sessions (csv files) into formatted numpy files.')
     print('\t2) Merge the data of multiple numpy files (output numpy files of option 1).')
-    print('\t3) Transform labeler output files (csv) to DROW dataset format (NOT FINISHED!).')
+    print('\t3) Transform labeler output files (csv) to DROW dataset format.')
     print('\t4) Transform old labeled files (csv) to new format.')
     print('\t5) Generate a bag file from a set of csv session files.')
     print('\t6) Concatenate bag files (not implemented yet).')
