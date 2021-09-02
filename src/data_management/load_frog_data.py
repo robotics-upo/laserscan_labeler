@@ -46,14 +46,27 @@ class LoadData:
         return np.linspace(-fov*0.5, fov*0.5, N)
 
 
-    def rphi_to_xy(self, r, phi):
-        return r * np.cos(phi), r * np.sin(phi)  # -np.sin(phi)
+    # In drow dataset, the laser scan starts from the left side:
+    # def rphi_to_xy(r, phi):
+    # return r * -np.sin(phi), r * np.cos(phi)
+    def rphi_to_xy(self, r, phi, frog=True): # In frog, it starts from the right.
+        if frog == True:
+            return r * np.cos(phi), r * np.sin(phi)  
+        else:
+            return r * -np.sin(phi), r * np.cos(phi)
 
 
-    def xy_to_rphi(self, x, y):
-        r = math.sqrt(x*x + y*y)
-        phi = math.atan2(y, x)
-        return [r, phi]
+    # for Drow dataset:
+    #def xy_to_rphi(x, y):
+    # Axes rotated by 90 CCW by intent, so tat 0 is top.
+    # return np.hypot(x, y), np.arctan2(-x, y)
+    def xy_to_rphi(self, x, y, frog=True):
+        if frog == True:
+            r = np.hypot(x, y)  #math.sqrt(x*x + y*y) 
+            phi = np.arctan2(y, x) #math.atan2(y, x) 
+            return [r, phi]
+        else:
+            return np.hypot(x, y), np.arctan2(-x, y)
 
     def scan_to_xy(self, scan, thresh=None, fov=None):
         s = np.array(scan, copy=True)
@@ -425,7 +438,7 @@ class LoadData:
             if len(circ['circles']) > 0:
                 for p in circ['circles']:
                     polar = np.round(self.xy_to_rphi(p['x'], p['y']), decimals=3)
-                    circ_row.append(polar)
+                    circ_row.append(list(polar))
 
             polar_cir.append(circ_row)
 
