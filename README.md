@@ -9,9 +9,8 @@ Based on the scan labeler of Joseph Duchesne (https://github.com/josephduchesne/
 ## Prereqs
 
 The tool is implemented using Python 3, PyQt5 and ROS Noetic.
-To run the tool in computers without the previous software, different options can be chosen:
+To run the tool in computers without the previous software, you can use a conda virtual environment:
 
-* By means of Conda:
 
 ```python
 conda install mamba -n base -c conda-forge
@@ -28,16 +27,6 @@ cd laserscan_labeler
 python src/qt_labeler.py
 ```
 
-* By means of a virtual environment:
-
-E.g.:
-
-```python
-python3 -m venv ~/VirtualEnvs/laserscan_labeler
-. ~/VirtualEnvs/laserscan_labeler/bin/activate
-python -m pip install --upgrade pip wheel setuptools
-pip install rospkg numpy matplotlib PyQt5 pyyaml scipy opencv-python-headless pycryptodomex gnupg lz4
-```
 
 Other Python deps required:
 * numpy

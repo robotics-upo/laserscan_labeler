@@ -16,7 +16,7 @@ def print_main_menu():
     print('\t1) Merge the data sessions (csv files) into formatted numpy files.')
     print('\t2) Merge the data of multiple numpy files (output numpy files of option 1).')
     print('\t3) Transform labeler output files (csv) to DROW dataset format.')
-    print('\t4) Transform old labeled files (csv) to new format.')
+    print('\t4) Transform DROW dataset files to scanlabeler format.')
     print('\t5) Generate a bag file from a set of csv session files.')
     print('\t6) Concatenate bag files (not implemented yet).')
     print('')
@@ -84,7 +84,7 @@ def merge_bags(dataloader):
 
 
 
-def to_drow(dataloader):
+def frog_to_drow(dataloader):
     print('')
     print('First, the input scan files will be transformed to drow format.')
     spath = input('Introduce the base directory in which your scans ([whatever]_scans.csv files) are: ')
@@ -92,6 +92,15 @@ def to_drow(dataloader):
     print('Secondly, the people detections will be transformed to drow format.')
     ppath = input('Introduce the base directory in which your detections ([whatever]_circles.csv files) are: ')
     dataloader.circles_to_drow(ppath)
+
+
+
+def drow_to_frog(dataloader):
+    print('')
+    path = input('Introduce the base directory in which your drow sequence files are (*.csv, *.wc, *.wa, *.wp): ')
+    print('The new files will be created in the folder: ', '/frog_data')
+    print('NOTE: only the people(*.wp) will be used for the moment.')
+    dataloader.drow_to_frog(path, 'frog_data')
 
 
 def to_new_format(dataloader):
@@ -129,7 +138,7 @@ if __name__ == '__main__':
     dataLoader = LoadData()
 
 
-    options = {'MERGECSV': 1, 'MERGEBAGS': 2, 'TODROW': 3, 'REFORMAT': 4, 'GENBAG': 5,
+    options = {'MERGECSV': 1, 'MERGEBAGS': 2, 'TODROW': 3, 'TOFROG': 4, 'GENBAG': 5,
      'CONBAG': 6, 'EXIT': 7}
 
     var = 0
@@ -144,10 +153,13 @@ if __name__ == '__main__':
             ok = merge_bags(dataLoader)
 
         elif int(var) == options['TODROW']:
-            to_drow(dataLoader)
+            frog_to_drow(dataLoader)
 
-        elif int(var) == options['REFORMAT']:
-            to_new_format(dataLoader)
+        elif int(var) == options['TOFROG']:
+            drow_to_frog(dataLoader)
+
+        #elif int(var) == options['REFORMAT']:
+        #    to_new_format(dataLoader)
 
         elif int(var) == options['GENBAG']:
             csv_to_bag(dataLoader)

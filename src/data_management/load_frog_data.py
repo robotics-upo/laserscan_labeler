@@ -1,12 +1,14 @@
 #!/usr/bin/python3
 # This Python file uses the following encoding: utf-8
 
+from PyQt5.QtCore import dec
 import numpy as np
 #import matplotlib.pyplot as plt
 import os
 import math
 import csv
 import json
+import cv2
 
 #from numpy.core.defchararray import lstrip
 import rosbag
@@ -32,13 +34,14 @@ class LoadData:
         self.myMaxRange = 25.0
         self.maxPeopleRange = 10.0 #We do not detect people farer than 10 meters
         self.maxDrowRange = 29.96
+        self.drow_npoints = 450
+
 
         # image info
-        self.img_width = 200       # px  (columns)
-        self.img_height = 200      # px  (rows)
-        self.img_resolution = 0.05 # 5cm/px
-        self.img_origin = [99, 99] # px
-
+        self.img_width = 400 #200       # px  (columns)
+        self.img_height = 400 #200      # px  (rows)
+        self.img_resolution = 0.05      # 5cm/px
+        self.img_origin = [199, 199]#[99, 99] # px
 
 
     def laser_angles(self, N, fov=None):
@@ -49,7 +52,8 @@ class LoadData:
     # In drow dataset, the laser scan starts from the left side:
     # def rphi_to_xy(r, phi):
     # return r * -np.sin(phi), r * np.cos(phi)
-    def rphi_to_xy(self, r, phi, frog=True): # In frog, it starts from the right.
+    # In frog, it starts from the right.
+    def rphi_to_xy(self, r, phi, frog=True): 
         if frog == True:
             return r * np.cos(phi), r * np.sin(phi)  
         else:
@@ -68,11 +72,43 @@ class LoadData:
         else:
             return np.hypot(x, y), np.arctan2(-x, y)
 
+
     def scan_to_xy(self, scan, thresh=None, fov=None):
         s = np.array(scan, copy=True)
         if thresh is not None:
-            s[s > thresh] = np.nan
+            s[s > thresh] = thresh + 1
         return self.rphi_to_xy(s, self.laser_angles(len(scan), fov))
+
+
+    def worldToImg(self, x, y):
+        #x1 = np.array(x, copy=True)
+        #y1 = np.array(y, copy=True)
+        #x1 = x1[~np.isnan(x1)]
+        #y1 = y1[~np.isnan(y1)]
+        px = self.img_origin[0] + np.rint(x/self.img_resolution)
+        py = self.img_origin[1] - np.rint(y/self.img_resolution) 
+
+        # just in case remove points outside the map 
+        index = []
+        for i in range(len(px)):
+            if px[i] >= self.img_width or py[i] >= self.img_height:
+                #print('cell x[', i, ']:', px[i], 'y[', i, ']:', py[i], ' out of upper bounds!!!')
+                index.append(i)
+            elif px[i] < 0 or py[i] < 0:
+                #print('cell x[', i, ']:', px[i], 'y[', i, ']:', py[i], ' out of under bounds (<0)!!!')
+                index.append(i)
+            elif px[i] == self.img_origin[0] and py[i] == self.img_origin[1]: #remove origin points
+                #print('cell x[', i, ']:', px[i], 'y[', i, ']:', py[i], ' equals to origin!!!')
+                index.append(i)
+        #print('len outliers: ', len(index))
+
+        pxn = [xi for idx, xi in enumerate(px) if not idx in index]
+        pyn = [yi for idy, yi in enumerate(py) if not idy in index]
+
+        xc = np.asarray(pxn, dtype = np.uint32)
+        yc = np.asarray(pyn, dtype = np.uint32)
+
+        return xc, yc 
 
 
     def load_numpy_formatted_data(self, file_path, type=1):
@@ -178,11 +214,11 @@ class LoadData:
         return ids, timestamps, scans
 
 
-    def load_csv_file(self, file_path):
+    def load_csv_file(self, file_path, npoints=720, skiph=1):
         data = []
-        dt = np.dtype([('id', np.int), ('timestamp', np.float64), ('scan', np.float32, (720,))])
+        dt = np.dtype([('id', np.int), ('timestamp', np.float64), ('scan', np.float32, (npoints,))])
         try:
-            data = np.genfromtxt(file_path, dtype=dt, delimiter=',', skip_header=1) # delimiter=',',
+            data = np.genfromtxt(file_path, dtype=dt, delimiter=',', skip_header=skiph) # delimiter=',',
         except IOError:
             print("ERROR: file data %s, could NOT be loaded!" % file_path)
             return
@@ -376,6 +412,7 @@ class LoadData:
                 
     def scan_to_drow(self, path):
         #we just need to replace the values higher than self.maxDrowRange = 29.96
+        # and flip the scan data
         for file in sorted(os.listdir(path)):
             if file.endswith('_scans.csv'):
                 print("Opening file:", file)
@@ -385,6 +422,11 @@ class LoadData:
                 scans[np.isinf(scans)] = self.maxDrowRange
                 scans[scans > self.maxDrowRange] = self.maxDrowRange
                 scans = np.round(scans, decimals=3)
+
+                # FROG laser scan starts from the right side.
+                # DROW laser scan starts from the left side.
+                # So we flip the scan array
+                scans = np.flip(scans, 1)
 
                 filename = str(file).replace('.csv', '_drow.csv')
                 file_path = os.path.join(path, filename)
@@ -437,12 +479,267 @@ class LoadData:
             circ_row = []
             if len(circ['circles']) > 0:
                 for p in circ['circles']:
-                    polar = np.round(self.xy_to_rphi(p['x'], p['y']), decimals=3)
+                    # FROG coordinates: x->forward, y->left
+                    # DROW coordinates: x->forward, y->right (laser upsidedown?)
+                    # So, we negate the y coordinate to comply with DROW laser frame
+                    polar = np.round(self.xy_to_rphi(p['x'], -p['y']), decimals=3)
                     circ_row.append(list(polar))
 
             polar_cir.append(circ_row)
 
         return polar_cir
+
+
+
+
+
+    def drow_to_frog(self, path, store_dir):
+        store_path = os.path.join(path, store_dir)
+        try:
+            os.mkdir(store_path)
+        except FileExistsError:
+            print ("Directory already exists. Continue...")
+        except OSError:
+            print ("Creation of the directory %s failed!" % store_path)
+
+        for file in sorted(os.listdir(path)):
+
+            # only people for the moment
+            if file.endswith('.wp'):
+                print("loading file:", file)
+                pfile_path = os.path.join(path, file)
+                seqs, wp_dets = self.load_drow_people_dets(pfile_path)
+
+                # Now take the scans according to the detection sequence numbers
+                sfile_path = os.path.join(path, str(file).replace('.wp', '.csv'))
+                scans, timestamps = self.load_drow_scan(sfile_path, seqs)
+                # NOTE:
+                # FROG laser scan starts from the right side.
+                # DROW laser scan starts from the left side.
+                # So we flip the scan array
+                # That was said in the drow documentation, but empirically
+                # does not seem to be that way. 
+                frog_scans = scans # np.flip(scans, 1)
+                # Write the new scan file
+                scan_filename = str(file).replace('.wp', '_frog_scans.csv')
+                scan_path = os.path.join(store_path, scan_filename)
+                self.scan_to_frog_file(scan_path, seqs, frog_scans, timestamps)
+
+                # Circles file
+                circles = self.drow_rphi_to_frog_circles(wp_dets)
+                cir_filename = str(file).replace('.wp', '_frog_circles.csv')
+                cir_path = os.path.join(store_path, cir_filename)
+                self.circles_to_frog_file(seqs, timestamps, circles, cir_path)
+
+                # labels file
+                label_filename = str(file).replace('.wp', '_frog_labels.csv')
+                label_path = os.path.join(store_path, label_filename)
+                self.generate_frog_labels(seqs, timestamps, frog_scans, circles, label_path) #, generate_images=True, max_imgs=20
+
+
+    def load_drow_people_dets(self, wpf):
+        """
+        load the people detections of a file (*.wp)
+        of the drow dataset
+        """
+        seqs, dets = [], []
+        with open(wpf) as f:
+            for line in f:
+                seq, tail = line.split(',', 1)
+                seqs.append(int(seq))
+                dets.append(json.loads(tail))
+        return seqs, dets
+
+    def load_drow_detections(wcf, waf, wpf):
+        def _load(fname):
+            seqs, dets = [], []
+            with open(fname) as f:
+                for line in f:
+                    seq, tail = line.split(',', 1)
+                    seqs.append(int(seq))
+                    dets.append(json.loads(tail))
+            return seqs, dets
+
+        print("Loading wcf detections: %s ..." % wcf)
+        s1, wcs = _load(wcf)
+        print("Loading waf detections: %s ..." % waf)
+        s2, was = _load(waf)
+        print("Loading wpf detections: %s ..." % wpf)
+        s3, wps = _load(wpf)
+
+        seqs = s1
+        # [seq, [wheelchair pos], [walking pos], [person pos]]
+        dets = [*zip(s1, wcs, was, wps)]
+        #print(dets)
+        return seqs, dets
+
+
+
+    
+    def load_drow_scan(self, scanfile, seqs):
+        """
+        Generates a filtered scan list based on the detection sequence numbers
+        """
+
+        print("Loading input scan: %s ..." % scanfile)
+        data = np.genfromtxt(scanfile, delimiter=",")
+        scan = data[:,2:].astype(np.float32)
+        sqs = data[:,0].astype(np.uint32)
+        tms = data[:,1].astype(np.float32)
+        scan[scan >= self.maxDrowRange] = self.maxRange + 1 #replace 29.69 by 61.0
+        print("Sequences to take: %i ..." % len(seqs))
+        
+        indexes = [idx for idx, sq in enumerate(sqs) if sq in seqs]
+        scans = [s for idx, s in enumerate(scan) if idx in indexes]
+        scans = np.array(scans)
+        scans = np.round(scans, decimals=3)
+        timestamps = [t for idx, t in enumerate(tms) if idx in indexes]
+        timestamps = np.array(timestamps)
+        return scans, timestamps
+
+
+
+    def scan_to_frog_file(self, store_file, seqs, scans, timestamps):
+
+        with open(store_file, "w") as outfile: 
+            csv_columns = ['id','timestamp','ranges']
+            writer = csv.writer(outfile, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE, escapechar=' ')
+            writer.writerow(csv_columns)
+            for i, data in enumerate(scans):
+                row = []
+                row.append(int(seqs[i]))
+                row.append(timestamps[i]) 
+                for item in data:
+                    row.append(item)
+                writer.writerow(row)
+
+        print('Raw scan file created: ', store_file)
+
+
+
+    def drow_rphi_to_frog_circles(self, wp_dets):
+
+        circles = []
+        r = 0.35
+        t = 1
+        id = 1
+        for people in wp_dets:
+            row_circles = []
+            if len(people) > 0:
+                for p in people:
+                    x, y = self.rphi_to_xy(p[0], p[1])
+                    x = np.round(x, decimals=2)
+                    y = np.round(y, decimals=2)
+                    row_circles.append({"idp": id, "x": x, "y": y, "r": r, "type": t}) 
+                    id += 1
+            circles.append(row_circles)
+        return circles
+
+
+    def circles_to_frog_file(self, seqs, timestamps, circles, out_file):
+
+        people = []
+        for s, tm, cir in zip(seqs, timestamps, circles):
+            people.append({"id": s, "timestamp": tm, "circles": cir})
+
+        with open(out_file, "w") as outfile: 
+            csv_columns = ['id','timestamp','circles']
+            writer = csv.DictWriter(outfile, fieldnames=csv_columns, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE, escapechar=' ')
+            writer.writeheader()
+            for data in people:
+                writer.writerow(data)
+
+        print('Circles file created: ', out_file)
+
+
+
+    def generate_frog_labels(self, seqs, timestamps, scans, circles, store_file, generate_images=False, max_imgs=None):
+
+        labels = []
+        img_counter = 0
+        if max_imgs is None:
+            max_imgs = len(seqs)
+
+        for s, seq, cs in zip(scans, seqs, circles):
+            
+            sx, sy = self.scan_to_xy(s, None, self.laserFoV)
+            scanxy = [*zip(sx, sy)]
+            scanxy = np.array(scanxy)
+
+            # crear un vector de info de los clusters
+            # para cada punto del scan guardar:
+            # p_info = [dist al detection center más cercano, clase]
+            # clases:0-none, 1-person
+            # Con esa info, generar los archivos de label con cada fila:
+            # [seq, [clase_p0, clase_p1, clase_p2, ..., clase_p450]]
+            p_info = [self.maxRange, 0]
+            clusters = []
+            for i in range(len(scanxy)):
+                clusters.append(p_info)
+
+            # iterate for each range and fill the clusters vector
+            for i in range(len(scanxy)):
+
+                # iterate for the pedestrian centers
+                for p in cs:
+                    px = scanxy[i][0] - p['x']
+                    py = scanxy[i][1] - p['y']
+                    pd = math.sqrt(px*px + py*py)
+                    if pd <= (p['r']+0.15) and pd < clusters[i][0]:
+                        clusters[i] = [pd, 1] #only one class
+                        
+            array = np.asarray(clusters)
+            # store the label array
+            labels.append(array[:,1].astype(np.uint8))
+
+            # Fill the label image
+            if generate_images and img_counter < max_imgs:
+                
+                label_img = np.zeros((self.img_height, self.img_width), dtype=int)
+                classes = array[:,1].astype(np.uint8)
+                
+                sx_label = np.asarray([xi for idx, xi in enumerate(sx) if classes[idx] == 1], dtype=np.float32)
+                sy_label = np.asarray([yi for idy, yi in enumerate(sy) if classes[idy] == 1], dtype=np.float32)
+                px_label, py_label = self.worldToImg(sx_label, sy_label)
+                label_img[py_label, px_label] = 255
+
+                ## This in case there are more than one class
+                # for idx in range(len(classes)):
+                #     if classes[idx] == 1:       # People class
+                #         cell = self.worldToImg(sx[idx], sy[idx])
+                #         if cell is not None:
+                #             label_img[cell[1], cell[0]] = 255  
+
+                end_file = "_" + str(seq) + ".jpg"
+                img_filename = str(store_file).replace('.csv', end_file)
+                print("Saving label image: %s" % img_filename)
+                cv2.imwrite(img_filename, label_img)
+
+                input_img = np.zeros((self.img_height, self.img_width), dtype=int)
+                px, py = self.worldToImg(sx, sy)
+                input_img[py, px] = 255
+                end_file = "scan_" + str(seq) + ".jpg"
+                input_filename = str(store_file).replace('labels.csv', end_file)
+                print("Saving  scan image: %s" % input_filename)
+                cv2.imwrite(input_filename, input_img)
+                
+                img_counter += 1
+
+
+        # write the label file
+        with open(store_file, "w") as outfile: 
+            csv_columns = ['id','timestamp','label']
+            writer = csv.writer(outfile, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE, escapechar=' ')
+            writer.writerow(csv_columns)
+            for i, data in enumerate(labels):
+                row = []
+                row.append(int(seqs[i]))
+                row.append(timestamps[i]) 
+                for item in data:
+                    row.append(item)
+                writer.writerow(row)
+
+        print('Label file created: ', store_file)
 
 
 
