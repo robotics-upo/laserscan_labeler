@@ -123,8 +123,8 @@ The options that the tool presents are:
 ```console
 1) Merge the data sessions (csv files) into formatted numpy files.
 2) Merge the data of multiple numpy files (output numpy files of option 1).
-3) Transform labeler output files (csv) to DROW dataset format (NOT FINISHED!).
-4) Transform old labeled files (csv) to new format.
+3) Transform labeler output files (csv) to DROW dataset format.
+4) Transform DROW dataset files to scanlabeler format.
 5) Generate a bag file from a set of csv session files.
 6) Concatenate bag files (not implemented yet).
 ```
