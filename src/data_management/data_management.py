@@ -46,17 +46,31 @@ def merge_files(dataloader):
     path = input('So please, type the base directory containing these directories: ')
     x_data_path = os.path.join(path, 'scans')
     y_data_path = os.path.join(path, 'labels')
+    nr = int(input("please type the number of ranges of the laser data (720 in Frog, 450 in Drow): "))
+    angle_inc_degrees = float(input("please introduce the angle increment in degrees of the laser data (0.25 in Frog, 0.5 in Drow): "))
     try:
-        x_data, y_data = dataloader.join_data(x_data_path, y_data_path)
+        x_data, y_data = dataloader.join_data(x_data_path, y_data_path, nr)
     except:
         print("ERROR: file data could NOT be loaded from: %s" % path)
         return False  #, x_data, y_data
     print("Data loaded:")
     print('x_data shape:', x_data.shape, 'type:', x_data.dtype)
     print('y_data shape:', y_data.shape, 'type:', y_data.dtype)
-    #print('x_data[0]:', x_data[0])
-    #print('y_data[0]:', y_data[0])
-    save_data_menu(dataloader, x_data, y_data, path)
+    print()
+    format = input('Do you want to save the data in the format of the learning network [1440 ranges, 0.25 degrees inc]? (type "y" or "n"): ')
+    if(format == 'y'):
+        print('Now the data will be transformed to the format of the learning network...')
+        x_data, y_data = dataloader.format_data_for_learning(x_data, y_data, nr, angle_inc_degrees)
+        print()
+        print("New data shape:")
+        print('x_data shape:', x_data.shape, 'type:', x_data.dtype)
+        print('y_data shape:', y_data.shape, 'type:', y_data.dtype)
+    print()
+    print('The data will be saved in', path, 'with names "[prefix]_x_data.npy" and "[prefix]_y_data.npy"')
+    prefix = input('Type a prefix for the new files: ')
+    dataloader.save_data(x_data, y_data, path, prefix)
+    
+    #save_data_menu(dataloader, x_data, y_data, path)
     return True #, x_data, y_data
     
 

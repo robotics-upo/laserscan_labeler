@@ -9,6 +9,7 @@ import math
 import csv
 import json
 import cv2
+from numpy.core.arrayprint import dtype_is_implied
 
 #from numpy.core.defchararray import lstrip
 import rosbag
@@ -25,16 +26,26 @@ class LoadData:
     def __init__(self):
 
         # laser info of FROG dataset
-        self.nPoints = 720
-        self.laserIncrement = 0.004363323096185923
-        self.laserFoV = (self.nPoints-1)*self.laserIncrement  
-        self.angleMin = -1.5707963705062866
-        self.angleMax = 1.5664329528808594
+        self.frog_nPoints = 720
+        self.frog_laserIncrement = 0.004363323096185923 # = 0.25 degrees
+        self.frog_laserFoV = (self.frog_nPoints-1)*self.frog_laserIncrement  #~180 degrees
+        self.frog_angleMin = -1.5707963705062866
+        self.frog_angleMax = 1.5664329528808594
         self.maxRange = 60.0
         self.myMaxRange = 25.0
+        
+
+        # laser info of DROW dataset
+        self.drow_maxRange = 29.96
+        self.drow_nPoints = 450
+        self.drow_laserIncrement = np.radians(0.5)
+        self.drow_laserFoV = (self.drow_nPoints-1)*self.drow_laserIncrement #~225 degrees
+
+        # laser data for learning
+        self.nPoints = 1440
+        self.laserIncrement = np.radians(0.25) 
+        self.laserFoV = (self.nPoints-1)*self.laserIncrement
         self.maxPeopleRange = 10.0 #We do not detect people farer than 10 meters
-        self.maxDrowRange = 29.96
-        self.drow_npoints = 450
 
 
         # image info
@@ -45,7 +56,7 @@ class LoadData:
 
 
     def laser_angles(self, N, fov=None):
-        fov = fov or self.laserFoV
+        fov = fov or self.frog_laserFoV
         return np.linspace(-fov*0.5, fov*0.5, N)
 
 
@@ -237,7 +248,7 @@ class LoadData:
 
 
 
-    def load_data(self, path, type=0):
+    def load_data(self, path, nranges, type=0):
 
         ids=[]
         timestamps=[]
@@ -249,7 +260,7 @@ class LoadData:
             file_path = os.path.join(path, file)
 
             if file.endswith('.csv') or file.endswith('.txt'):
-                id, timestamp, scan = self.load_csv_file(file_path)
+                id, timestamp, scan = self.load_csv_file(file_path, npoints=nranges)
 
             elif file.endswith('.npy'):
                 id, timestamp, scan = self.load_numpy_file(file_path)
@@ -284,11 +295,11 @@ class LoadData:
 
 
 
-    def join_data(self, x_data_path, y_data_path):
+    def join_data(self, x_data_path, y_data_path, nranges):
 
         #x_data_path = os.path.join(directory_path, 'scans')
         print("Loading data from", x_data_path)
-        x_ids, x_ts, x_ranges = self.load_data(x_data_path, type=0)
+        x_ids, x_ts, x_ranges = self.load_data(x_data_path, nranges, type=0)
         print('x_ranges.shape:', x_ranges.shape)
         #x_data = np.array(x_ranges, dtype=float)
         #x_data = x_ranges.astype(float)
@@ -296,7 +307,7 @@ class LoadData:
 
         #y_data_path = os.path.join(directory_path, 'labels')
         print("Loading data from", y_data_path)
-        y_ids, y_ts, y_labels = self.load_data(y_data_path, type=1)
+        y_ids, y_ts, y_labels = self.load_data(y_data_path, nranges, type=1)
         #y_data = np.array(y_labels, dtype=int)
         y_data = y_labels
 
@@ -419,8 +430,8 @@ class LoadData:
                 file_path = os.path.join(path, file)
                 ids, timestamps, scans = self.load_csv_file(file_path)
 
-                scans[np.isinf(scans)] = self.maxDrowRange
-                scans[scans > self.maxDrowRange] = self.maxDrowRange
+                scans[np.isinf(scans)] = self.drow_maxRange  
+                scans[scans > self.drow_maxRange] = self.drow_maxRange
                 scans = np.round(scans, decimals=3)
 
                 # FROG laser scan starts from the right side.
@@ -428,7 +439,7 @@ class LoadData:
                 # So we flip the scan array
                 scans = np.flip(scans, 1)
 
-                filename = str(file).replace('.csv', '_drow.csv')
+                filename = str(file).replace('_scans.csv', '_drow.csv')
                 file_path = os.path.join(path, filename)
                 with open(file_path, "w", newline='') as outfile:
                     writer = csv.writer(outfile, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE, escapechar=' ')
@@ -454,7 +465,7 @@ class LoadData:
                 #Now we need to transform our cartesian coordinates to polar
                 polar_circles = self.circles_to_polar(circles)
 
-                filename = str(file).replace('.csv', '_drow.wp')
+                filename = str(file).replace('_circles.csv', '_drow.wp')
                 file_path = os.path.join(path, filename)
                 with open(file_path, "w", newline='') as outfile:
                     writer = csv.writer(outfile, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE, escapechar=' ')
@@ -546,9 +557,18 @@ class LoadData:
         with open(wpf) as f:
             for line in f:
                 seq, tail = line.split(',', 1)
+                people = json.loads(tail)
+                c = 0
+                newp = []
+                if len(people) > 0:
+                    for person in people:
+                        # remove detections farther than max detection dist of frog
+                        if person[0] <= self.maxPeopleRange:
+                            newp.append(person)
                 seqs.append(int(seq))
-                dets.append(json.loads(tail))
+                dets.append(newp)
         return seqs, dets
+
 
     def load_drow_detections(wcf, waf, wpf):
         def _load(fname):
@@ -572,7 +592,6 @@ class LoadData:
         dets = [*zip(s1, wcs, was, wps)]
         #print(dets)
         return seqs, dets
-
 
 
     
@@ -662,7 +681,7 @@ class LoadData:
 
         for s, seq, cs in zip(scans, seqs, circles):
             
-            sx, sy = self.scan_to_xy(s, None, self.laserFoV)
+            sx, sy = self.scan_to_xy(s, None, self.frog_laserFoV)
             scanxy = [*zip(sx, sy)]
             scanxy = np.array(scanxy)
 
@@ -938,3 +957,74 @@ class LoadData:
                 m_msg.markers.append(marker)
 
         return p_msg, m_msg
+
+
+    # ranges data (x_data) already normalized!
+    # angle_inc_deg is in degrees
+    # This only allows angle increments of 0.25 or 0.5 degrees
+    def format_data_for_learning(self, x_data, y_data, nr, angle_inc_deg):
+
+        basic_ranges = [self.maxPeopleRange + 1] * self.nPoints
+        basic_label = [0] * self.nPoints
+        xdata = []
+        ydata = []
+
+        # same angle icrement
+        if abs(np.radians(angle_inc_deg) - self.laserIncrement) < 0.01:
+
+            # same number of ranges
+            if nr == self.nPoints:
+                print("Data is already in the correct format!")
+                return x_data, y_data
+
+            # different FoV
+            else:
+                #fov = (nr - 1) * angle_inc
+                skip = (self.nPoints - nr)/2
+                rn = len(x_data[0])
+                
+                for x, y in zip(x_data, y_data):
+                    d = basic_ranges
+                    d[skip:(skip+rn)] = x
+                    xdata.append(d)
+                    l = basic_label
+                    l[skip:(skip+rn)] = y
+                    ydata.append(l)
+
+                xdata = np.asarray(xdata, dtype=np.float32)
+                ydata = np.asarray(ydata, dtype=np.int8)
+                return xdata, ydata
+
+
+        # different angle increment (0.5)
+        elif abs(angle_inc_deg - 0.5) < 0.01:
+            rn = len(x_data[0])*2
+            if rn > self.nPoints:
+                print("ERROR! range data can not be transformed into learning format!!!")
+                return xdata, ydata
+            
+            skip = (self.nPoints - nr)/2
+            for x, y in zip(x_data, y_data):
+                d = basic_ranges
+                a = [self.maxPeopleRange + 1] * rn
+                ii = 0
+                for i in range(len(a)):
+                    if (i%2 == 0):
+                        a[i]=x[ii]
+                        ii += 1
+                d[skip:(skip+rn)] = a
+                xdata.append(d)
+
+                l = basic_label
+                b = [0] * rn
+                ii = 0
+                for i in range(len(b)):
+                    if (i%2 == 0):
+                        b[i]=y[ii]
+                        ii += 1
+                l[skip:(skip+rn)] = b
+                ydata.append(l)
+
+        xdata = np.asarray(xdata, dtype=np.float32)
+        ydata = np.asarray(ydata, dtype=np.int8)
+        return xdata, ydata
