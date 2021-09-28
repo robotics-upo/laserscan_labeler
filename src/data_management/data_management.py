@@ -65,6 +65,11 @@ def merge_files(dataloader):
         print("New data shape:")
         print('x_data shape:', x_data.shape, 'type:', x_data.dtype)
         print('y_data shape:', y_data.shape, 'type:', y_data.dtype)
+        # for i, d in enumerate(x_data):
+        #     if i>0:
+        #         comparison = x_data[i] == x_data[i-1]
+        #         if comparison.all():
+        #             print ("scan", i, "equals to scan", i-1)
     print()
     print('The data will be saved in', path, 'with names "[prefix]_x_data.npy" and "[prefix]_y_data.npy"')
     prefix = input('Type a prefix for the new files: ')

@@ -42,7 +42,7 @@ class LoadData:
         self.drow_laserFoV = (self.drow_nPoints-1)*self.drow_laserIncrement #~225 degrees
 
         # laser data for learning
-        self.nPoints = 1440
+        self.nPoints = 720 #1440
         self.laserIncrement = np.radians(0.25) 
         self.laserFoV = (self.nPoints-1)*self.laserIncrement
         self.maxPeopleRange = 10.0 #We do not detect people farer than 10 meters
@@ -102,6 +102,9 @@ class LoadData:
         # just in case remove points outside the map 
         index = []
         for i in range(len(px)):
+            sq = math.sqrt(px[i]*px[i] + py[i]*py[i])
+            if sq >= (self.maxPeopleRange + 1):
+                index.append(i)
             if px[i] >= self.img_width or py[i] >= self.img_height:
                 #print('cell x[', i, ']:', px[i], 'y[', i, ']:', py[i], ' out of upper bounds!!!')
                 index.append(i)
@@ -605,7 +608,7 @@ class LoadData:
         scan = data[:,2:].astype(np.float32)
         sqs = data[:,0].astype(np.uint32)
         tms = data[:,1].astype(np.float32)
-        scan[scan >= self.maxDrowRange] = self.maxRange + 1 #replace 29.69 by 61.0
+        scan[scan >= self.drow_maxRange] = self.maxRange + 1 #replace 29.69 by 61.0
         print("Sequences to take: %i ..." % len(seqs))
         
         indexes = [idx for idx, sq in enumerate(sqs) if sq in seqs]
@@ -681,13 +684,13 @@ class LoadData:
 
         for s, seq, cs in zip(scans, seqs, circles):
             
-            sx, sy = self.scan_to_xy(s, None, self.frog_laserFoV)
+            sx, sy = self.scan_to_xy(s, self.maxPeopleRange, self.frog_laserFoV) 
             scanxy = [*zip(sx, sy)]
             scanxy = np.array(scanxy)
 
             # crear un vector de info de los clusters
             # para cada punto del scan guardar:
-            # p_info = [dist al detection center más cercano, clase]
+            # p_info = [dist al circle más cercano, clase]
             # clases:0-none, 1-person
             # Con esa info, generar los archivos de label con cada fila:
             # [seq, [clase_p0, clase_p1, clase_p2, ..., clase_p450]]
@@ -964,31 +967,44 @@ class LoadData:
     # This only allows angle increments of 0.25 or 0.5 degrees
     def format_data_for_learning(self, x_data, y_data, nr, angle_inc_deg):
 
-        basic_ranges = [self.maxPeopleRange + 1] * self.nPoints
+        print("format_data_for_learning:")
+        #print("x_data[0]: ", x_data[0])
+        # print("x_data[fin]: ", x_data[len(x_data)-1])
+        # comparison = (x_data[0] == x_data[len(x_data)-2])
+        # if comparison.all() == True:
+        #     print("ini and end are equals!!!")
+        # else:
+        #     print("scans are different!!!!")
+
+        basic_ranges = [1.0] * self.nPoints #[self.maxPeopleRange + 1] * self.nPoints
         basic_label = [0] * self.nPoints
+        inputFoV = (nr - 1) * np.radians(angle_inc_deg)
         xdata = []
         ydata = []
 
         # same angle icrement
-        if abs(np.radians(angle_inc_deg) - self.laserIncrement) < 0.01:
+        print("Input data format. npoints:", nr, "angle_inc:", angle_inc_deg, 'degrees')
+        #print("outInc:", self.laserIncrement, 'inInc:', np.radians(angle_inc_deg))
+        if abs(np.radians(angle_inc_deg) - self.laserIncrement) < 0.001:
 
             # same number of ranges
             if nr == self.nPoints:
                 print("Data is already in the correct format!")
                 return x_data, y_data
 
-            # different FoV
+            # different FoV - self.laserFoV > inputFoV 
             else:
-                #fov = (nr - 1) * angle_inc
-                skip = (self.nPoints - nr)/2
+                print("Same angle increment! Different FoV!")
+                #points to skip at the begining and at the end
+                skip = int((self.nPoints - nr)/2)
                 rn = len(x_data[0])
-                
+                    
                 for x, y in zip(x_data, y_data):
-                    d = basic_ranges
-                    d[skip:(skip+rn)] = x
+                    d = basic_ranges.copy()
+                    d[skip:-skip] = x
                     xdata.append(d)
-                    l = basic_label
-                    l[skip:(skip+rn)] = y
+                    l = basic_label.copy()
+                    l[skip:-skip] = y
                     ydata.append(l)
 
                 xdata = np.asarray(xdata, dtype=np.float32)
@@ -998,32 +1014,62 @@ class LoadData:
 
         # different angle increment (0.5)
         elif abs(angle_inc_deg - 0.5) < 0.01:
-            rn = len(x_data[0])*2
-            if rn > self.nPoints:
+            nr2 = len(x_data[0])*2
+
+            if self.laserFoV > 6.2 and nr2 > self.nPoints:  # 
                 print("ERROR! range data can not be transformed into learning format!!!")
                 return xdata, ydata
-            
-            skip = (self.nPoints - nr)/2
-            for x, y in zip(x_data, y_data):
-                d = basic_ranges
-                a = [self.maxPeopleRange + 1] * rn
-                ii = 0
-                for i in range(len(a)):
-                    if (i%2 == 0):
-                        a[i]=x[ii]
-                        ii += 1
-                d[skip:(skip+rn)] = a
-                xdata.append(d)
 
-                l = basic_label
-                b = [0] * rn
-                ii = 0
-                for i in range(len(b)):
-                    if (i%2 == 0):
-                        b[i]=y[ii]
-                        ii += 1
-                l[skip:(skip+rn)] = b
-                ydata.append(l)
+            # laserFoV < inputFov:
+            if inputFoV > self.laserFoV:
+                print("Different angle increment! and Input FoV > output FoV!")
+                # we must discard points in x_data outside our FoV
+                skip = int((nr - (self.nPoints/2))/2)
+                print("skipping a total of", skip*2, "points from input scan")
+                
+                for x, y in zip(x_data, y_data):
+                    d = x[skip:-skip]
+                    a = basic_ranges.copy() #[1.0] * self.nPoints
+                    i = 0
+                    for data in d:
+                        a[i] = data
+                        i+=2
+                    xdata.append(a)
+            
+                    l = y[skip:-skip]
+                    b = basic_label.copy()
+                    i = 0
+                    for data in l:
+                        b[i] = data
+                        i+=2
+                    ydata.append(b)
+                    
+
+            # inputFoV <= laserFoV
+            else: 
+                print("Different angle increment! and Input FoV <= output FoV!")
+                #points to skip at the begining and at the end  
+                skip = int((self.nPoints - nr)/2)
+                for x, y in zip(x_data, y_data):
+                    d = basic_ranges.copy()
+                    a = [self.maxPeopleRange + 1] * nr2
+                    ii = 0
+                    for i in range(len(a)):
+                        if (i%2 == 0):
+                            a[i]=x[ii]
+                            ii += 1
+                    d[skip:-skip] = a
+                    xdata.append(d)
+
+                    l = basic_label.copy()
+                    b = [0] * nr2
+                    ii = 0
+                    for i in range(len(b)):
+                        if (i%2 == 0):
+                            b[i]=y[ii]
+                            ii += 1
+                    l[skip:-skip] = b
+                    ydata.append(l)
 
         xdata = np.asarray(xdata, dtype=np.float32)
         ydata = np.asarray(ydata, dtype=np.int8)
