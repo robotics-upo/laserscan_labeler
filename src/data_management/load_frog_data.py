@@ -507,7 +507,7 @@ class LoadData:
 
 
 
-    def drow_to_frog(self, path, store_dir):
+    def drow_to_frog(self, path, store_dir, upsampling=False):
         store_path = os.path.join(path, store_dir)
         try:
             os.mkdir(store_path)
@@ -533,11 +533,11 @@ class LoadData:
                 # So we flip the scan array
                 # That was said in the drow documentation, but empirically
                 # does not seem to be that way. 
-                frog_scans = scans # np.flip(scans, 1)
+                #frog_scans = scans # np.flip(scans, 1)
                 # Write the new scan file
                 scan_filename = str(file).replace('.wp', '_frog_scans.csv')
                 scan_path = os.path.join(store_path, scan_filename)
-                self.scan_to_frog_file(scan_path, seqs, frog_scans, timestamps)
+                frog_scans = self.drow_scan_to_frog(scan_path, seqs, scans, timestamps, upsampling)
 
                 # Circles file
                 circles = self.drow_rphi_to_frog_circles(wp_dets)
@@ -565,7 +565,7 @@ class LoadData:
                 newp = []
                 if len(people) > 0:
                     for person in people:
-                        # remove detections farther than max detection dist of frog
+                        # remove detections farther than max detection dist for learning
                         if person[0] <= self.maxPeopleRange:
                             newp.append(person)
                 seqs.append(int(seq))
@@ -621,13 +621,71 @@ class LoadData:
 
 
 
-    def scan_to_frog_file(self, store_file, seqs, scans, timestamps):
+    def format_drowscan_to_frog(self, scans, fill=True):
+        
+        # Drow angle increment = 0.5, frog and learning = 0.25
+        basic_ranges = [self.maxRange] * self.nPoints   #[self.maxPeopleRange + 1]
+        nr2 = self.drow_nPoints*2 
 
+        frog_scans = []
+
+        if self.drow_laserFoV > self.laserFoV:
+            print("Drow FoV > frog FoV!")
+            print("We must discard points in the input scan outside our FoV!")
+            skip = int((self.drow_nPoints - (self.nPoints/2))/2)
+            print("skipping a total of", skip*2, "points from input scan")
+                
+            for x in scans:
+                d = x[skip:-skip]
+                a = basic_ranges.copy() #[1.0] * self.nPoints
+                i = 0
+                for data in d:
+                    a[i] = data
+                    if fill == True:
+                        a[i+1] = data
+                    i+=2
+                frog_scans.append(a)
+            
+        else: 
+            print("Drow FoV <= frog FoV!")
+            #points to skip at the begining and at the end  
+            skip = int((self.nPoints - self.drow_nPoints)/2)
+            print("skipping of filling a total of", skip*2, "points from frog scan")
+            for x in scans:
+                d = basic_ranges.copy()
+                a = [self.maxRange] * nr2
+                i = 0
+                if fill == True:
+                    for data in x:
+                        a[i]=data
+                        a[i+1]=data
+                        i+=2
+                else:
+                    ii = 0
+                    for i in range(len(a)):
+                        if (i%2 == 0):
+                            a[i]=x[ii]
+                            ii += 1
+
+                d[skip:-skip] = a
+                frog_scans.append(d)
+                    
+        frog_scans = np.asarray(frog_scans, dtype=np.float32)
+        return frog_scans
+
+
+
+    def drow_scan_to_frog(self, store_file, seqs, scans, timestamps, upsampling=True):
+
+        # Transform the scan to the network format:
+        # angle_increment 0.25º, FoV 180º, points=720
+        frog_scans = self.format_drowscan_to_frog(scans, fill=upsampling)
+        
         with open(store_file, "w") as outfile: 
             csv_columns = ['id','timestamp','ranges']
             writer = csv.writer(outfile, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE, escapechar=' ')
             writer.writerow(csv_columns)
-            for i, data in enumerate(scans):
+            for i, data in enumerate(frog_scans):
                 row = []
                 row.append(int(seqs[i]))
                 row.append(timestamps[i]) 
@@ -636,6 +694,7 @@ class LoadData:
                 writer.writerow(row)
 
         print('Raw scan file created: ', store_file)
+        return frog_scans
 
 
 
@@ -649,11 +708,14 @@ class LoadData:
             row_circles = []
             if len(people) > 0:
                 for p in people:
-                    x, y = self.rphi_to_xy(p[0], p[1])
-                    x = np.round(x, decimals=2)
-                    y = np.round(y, decimals=2)
-                    row_circles.append({"idp": id, "x": x, "y": y, "r": r, "type": t}) 
-                    id += 1
+                    # if the person is outside the net FoV,
+                    # we do not add him
+                    if(abs(p[1]) <= self.laserFoV/2.0):
+                        x, y = self.rphi_to_xy(p[0], p[1])
+                        x = np.round(x, decimals=2)
+                        y = np.round(y, decimals=2)
+                        row_circles.append({"idp": id, "x": x, "y": y, "r": r, "type": t}) 
+                        id += 1
             circles.append(row_circles)
         return circles
 
@@ -684,7 +746,7 @@ class LoadData:
 
         for s, seq, cs in zip(scans, seqs, circles):
             
-            sx, sy = self.scan_to_xy(s, self.maxPeopleRange, self.frog_laserFoV) 
+            sx, sy = self.scan_to_xy(s, self.maxPeopleRange, self.laserFoV) 
             scanxy = [*zip(sx, sy)]
             scanxy = np.array(scanxy)
 
@@ -965,30 +1027,30 @@ class LoadData:
     # ranges data (x_data) already normalized!
     # angle_inc_deg is in degrees
     # This only allows angle increments of 0.25 or 0.5 degrees
-    def format_data_for_learning(self, x_data, y_data, nr, angle_inc_deg):
+    def format_data_for_learning(self, x_data, y_data, nr, angle_inc_deg, fill=True, data_normalized=True):
 
         print("format_data_for_learning:")
-        #print("x_data[0]: ", x_data[0])
-        # print("x_data[fin]: ", x_data[len(x_data)-1])
-        # comparison = (x_data[0] == x_data[len(x_data)-2])
-        # if comparison.all() == True:
-        #     print("ini and end are equals!!!")
-        # else:
-        #     print("scans are different!!!!")
+        xdata = []
+        ydata = []
+        if data_normalized == False:
+            # Normalize data
+            print("Normalizing data..")
+            x_data[np.isinf(x_data)] = self.maxPeopleRange + 1
+            x_data[x_data > self.maxPeopleRange] = self.maxPeopleRange + 1
+            x_data = x_data/(self.maxPeopleRange + 1)
+
 
         basic_ranges = [1.0] * self.nPoints #[self.maxPeopleRange + 1] * self.nPoints
         basic_label = [0] * self.nPoints
-        inputFoV = (nr - 1) * np.radians(angle_inc_deg)
-        xdata = []
-        ydata = []
-
+        numr = len(x_data[0])  # must be equal to nr
+        inputFoV = (numr - 1) * np.radians(angle_inc_deg)
+        
         # same angle icrement
-        print("Input data format. npoints:", nr, "angle_inc:", angle_inc_deg, 'degrees')
-        #print("outInc:", self.laserIncrement, 'inInc:', np.radians(angle_inc_deg))
+        print("Input data format. npoints:", numr, "angle_inc:", angle_inc_deg, 'degrees')
         if abs(np.radians(angle_inc_deg) - self.laserIncrement) < 0.001:
 
             # same number of ranges
-            if nr == self.nPoints:
+            if numr == self.nPoints:
                 print("Data is already in the correct format!")
                 return x_data, y_data
 
@@ -996,8 +1058,7 @@ class LoadData:
             else:
                 print("Same angle increment! Different FoV!")
                 #points to skip at the begining and at the end
-                skip = int((self.nPoints - nr)/2)
-                rn = len(x_data[0])
+                skip = int((self.nPoints - numr)/2)
                     
                 for x, y in zip(x_data, y_data):
                     d = basic_ranges.copy()
@@ -1033,6 +1094,8 @@ class LoadData:
                     i = 0
                     for data in d:
                         a[i] = data
+                        if fill == True:
+                            a[i+1] = data
                         i+=2
                     xdata.append(a)
             
@@ -1041,6 +1104,8 @@ class LoadData:
                     i = 0
                     for data in l:
                         b[i] = data
+                        if fill == True:
+                            b[i+1] = data
                         i+=2
                     ydata.append(b)
                     
@@ -1053,21 +1118,35 @@ class LoadData:
                 for x, y in zip(x_data, y_data):
                     d = basic_ranges.copy()
                     a = [self.maxPeopleRange + 1] * nr2
-                    ii = 0
-                    for i in range(len(a)):
-                        if (i%2 == 0):
-                            a[i]=x[ii]
-                            ii += 1
+                    i = 0
+                    if fill == True:
+                        for data in x:
+                            a[i]=data
+                            a[i+1]=data
+                            i+=2
+                    else:
+                        ii = 0
+                        for i in range(len(a)):
+                            if (i%2 == 0):
+                                a[i]=x[ii]
+                                ii += 1
                     d[skip:-skip] = a
                     xdata.append(d)
 
                     l = basic_label.copy()
                     b = [0] * nr2
-                    ii = 0
-                    for i in range(len(b)):
-                        if (i%2 == 0):
-                            b[i]=y[ii]
-                            ii += 1
+                    i = 0
+                    if fill == True:
+                        for data in y:
+                            b[i]=data
+                            b[i+1]=data
+                            i+=2
+                    else:
+                        ii = 0
+                        for i in range(len(b)):
+                            if (i%2 == 0):
+                                b[i]=y[ii]
+                                ii += 1
                     l[skip:-skip] = b
                     ydata.append(l)
 

@@ -60,7 +60,7 @@ def merge_files(dataloader):
     format = input('Do you want to save the data in the format of the learning network [1440 ranges, 0.25 degrees inc]? (type "y" or "n"): ')
     if(format == 'y'):
         print('Now the data will be transformed to the format of the learning network...')
-        x_data, y_data = dataloader.format_data_for_learning(x_data, y_data, nr, angle_inc_degrees)
+        x_data, y_data = dataloader.format_data_for_learning(x_data, y_data, nr, angle_inc_degrees, data_normalized=True)
         print()
         print("New data shape:")
         print('x_data shape:', x_data.shape, 'type:', x_data.dtype)
@@ -119,7 +119,11 @@ def drow_to_frog(dataloader):
     path = input('Introduce the base directory in which your drow sequence files are (*.csv, *.wc, *.wa, *.wp): ')
     print('The new files will be created in the folder: ', '/frog_data')
     print('NOTE: only the people(*.wp) will be used for the moment.')
-    dataloader.drow_to_frog(path, 'frog_data')
+    type = input("Do you want to upsample the scan data? (type 'y' or 'n'):")
+    upsampling = False
+    if type == 'y':
+        upsampling = True
+    dataloader.drow_to_frog(path, 'frog_data', upsampling)
 
 
 def to_new_format(dataloader):
