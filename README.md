@@ -121,12 +121,20 @@ This tool allows to manage the data provided by the laserscan_labeler in order t
 The options that the tool presents are:
 
 ```console
-1) Merge the data sessions (csv files) into formatted numpy files.
-2) Merge the data of multiple numpy files (output numpy files of option 1).
-3) Transform labeler output files (csv) to DROW dataset format.
-4) Transform DROW dataset files to scanlabeler format.
-5) Generate a bag file from a set of csv session files.
-6) Concatenate bag files (not implemented yet).
+----------------------------------------------------------
+MENU:
+----------------------------------------------------------
+DATA PREPROCESSING:
+	1) Merge the data sessions (csv files) into formatted numpy files.
+	2) Merge the data of multiple numpy files (output numpy files of option 1).
+	3) Transform labeler output files (csv) to DROW dataset format.
+	4) Transform DROW dataset files to scanlabeler format.
+	5) Generate a bag file from a set of csv session files.
+	6) Generate classification and localization labels from circles csv files.
+	7) Generate Gaussian labels from binary scanlabeler files (csv).
+	8) Generate binary labels covering full people from binary scanlabeler files (csv).
+
+	9) Exit
 ```
 
 To get started, run:

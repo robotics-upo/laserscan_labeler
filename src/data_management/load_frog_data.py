@@ -1,17 +1,13 @@
 #!/usr/bin/python3
 # This Python file uses the following encoding: utf-8
 
-from PyQt5.QtCore import dec
 import numpy as np
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import os
 import math
 import csv
 import json
 import cv2
-from numpy.core.arrayprint import dtype_is_implied
-
-#from numpy.core.defchararray import lstrip
 import rosbag
 import rospy
 from sensor_msgs.msg import LaserScan
@@ -24,6 +20,8 @@ from visualization_msgs.msg import MarkerArray, Marker
 class LoadData:
 
     def __init__(self):
+
+        #rospy.init_node('loadData')
 
         # laser info of FROG dataset
         self.frog_nPoints = 720
@@ -84,11 +82,11 @@ class LoadData:
             return np.hypot(x, y), np.arctan2(-x, y)
 
 
-    def scan_to_xy(self, scan, thresh=None, fov=None):
+    def scan_to_xy(self, scan, thresh=None, fov=None, frog=True):
         s = np.array(scan, copy=True)
         if thresh is not None:
             s[s > thresh] = thresh + 1
-        return self.rphi_to_xy(s, self.laser_angles(len(scan), fov))
+        return self.rphi_to_xy(s, self.laser_angles(len(scan), fov), frog=frog)
 
 
     def worldToImg(self, x, y):
@@ -139,7 +137,7 @@ class LoadData:
                 print('There is nan values!!!!!!!!')
                 print(np.isnan(data))
             if (np.any(data > 1.0) or np.any(data < 0.0)):
-                print('x_data out of range!!!!')
+                print('data out of range!!!!')
                 print('data max:', data.max())
                 print('data min:', data.min())
     
@@ -228,6 +226,87 @@ class LoadData:
         return ids, timestamps, scans
 
 
+
+    def load_class_and_loc_labels(self, y_data_path):
+
+        c = 0
+        class_labels = []
+        loc_labels = []
+        for file in sorted(os.listdir(y_data_path)):
+
+            file_path = os.path.join(y_data_path, file)
+
+            if file.endswith('_class_labels.csv'):
+                print("loading file:", file)
+                try:
+                    cdata = np.genfromtxt(file_path, delimiter=',', skip_header=False) 
+                except IOError:
+                    print("ERROR: file data %s, could NOT be loaded!" % file_path)
+                    return
+                print("class data shape:")
+                print(cdata.shape)
+                classes = np.array(cdata, dtype=int)
+
+                locfile = str(file).replace('_class_labels.csv', '_loc_labels.csv')
+                file2_path = os.path.join(y_data_path, locfile)
+                print("loading file:", locfile)
+                try:
+                    ldata = np.genfromtxt(file2_path, delimiter=',', autostrip=True, skip_header=False) 
+                except IOError:
+                    print("ERROR: file data %s, could NOT be loaded!" % file_path)
+                    return
+                #print("localization data shape:")
+                #print(ldata.shape)
+                locs = np.reshape(ldata, (-1, int(len(ldata[0])/2), 2))
+                #print("localization data shape:")
+                print(locs.shape)
+                #print("ldata[0]:", locs[0])
+                #Normalize range
+                locs[:,:,0] = locs[:,:,0]/(self.maxPeopleRange + 1)
+                #print("ldata[0] range normalized:", locs[0])
+                # normalize angle
+                # First, convert to positive value [0,2pi]
+                for i, people in enumerate(locs):
+                    for j, p in enumerate(people):
+                        if p[1] < 0:
+                            locs[i,j,1] = p[1]*(-1.0)
+                        elif p[1] > 0: 
+                            locs[i,j,1] = 2.0*np.pi - p[1] 
+
+                #print("ldata[0] angle in the the range[0,2pi]:", locs[0])
+                # now, normalize in the whole circunference        
+                locs[:,:,1] = locs[:,:,1]/(2*np.pi)
+                print("Localization data (r,phi) has been normalized")
+                #print("ldata[0] normalized:", locs[0])
+
+                # denor = np.array(locs[0], copy=True)
+                # denor[:,0] = denor[:,0] * (self.maxPeopleRange + 1)
+                # denor[:,1] = denor[:,1] * (2*np.pi)
+                # for d in denor:
+                #     if d[1] != 0 and d[1] < np.pi:
+                #         d[1] = d[1]*(-1)
+                #     elif d[1]!=0 and d[1] > np.pi:
+                #         d[1] = 2.0*np.pi - d[1] 
+                # print("ldata[0] denormalized:", denor)
+
+
+                if c == 0:
+                    class_labels = classes
+                    loc_labels = locs
+                else:
+                    class_labels = np.concatenate((class_labels, classes), axis=0)
+                    loc_labels = np.concatenate((loc_labels, locs), axis=0)
+                c+=1
+
+        return class_labels, loc_labels
+
+            
+
+        
+
+
+
+
     def load_csv_file(self, file_path, npoints=720, skiph=1):
         data = []
         dt = np.dtype([('id', np.int), ('timestamp', np.float64), ('scan', np.float32, (npoints,))])
@@ -253,6 +332,10 @@ class LoadData:
 
     def load_data(self, path, nranges, type=0):
 
+        # type = 0, scan range data
+        # type = 1, binary label
+        # type = 2, non-binary label
+
         ids=[]
         timestamps=[]
         ranges=[]
@@ -268,7 +351,7 @@ class LoadData:
             elif file.endswith('.npy'):
                 id, timestamp, scan = self.load_numpy_file(file_path)
 
-            if(type==0):
+            if(type==0): # scan range
                 # cut far values and normalize the ranges
                 scan[np.isinf(scan)] = self.maxPeopleRange + 1
                 # we check if there are nan values just in case
@@ -279,9 +362,12 @@ class LoadData:
                 scan = scan.astype(np.float32)
                 if np.any(np.isnan(scan)):
                     print('Load_data. There is nan values in the scan!!!!!!!!')
-            else:
-                #scan = np.array(scan, dtype=int)
+
+            elif (type==1): # binary label
                 scan = scan.astype(np.uint8)
+            
+            else:   # non-binary label
+                scan = scan.astype(np.float32)
 
             #x_data = np.concatenate((x_data, x_ranges), axis=0)
             if c == 0:
@@ -298,11 +384,12 @@ class LoadData:
 
 
 
-    def join_data(self, x_data_path, y_data_path, nranges):
+    def join_data(self, x_data_path, y_data_path, nranges, binary_label=True):
 
         #x_data_path = os.path.join(directory_path, 'scans')
         print("Loading data from", x_data_path)
         x_ids, x_ts, x_ranges = self.load_data(x_data_path, nranges, type=0)
+        print("Scan ranges has been normalized")
         print('x_ranges.shape:', x_ranges.shape)
         #x_data = np.array(x_ranges, dtype=float)
         #x_data = x_ranges.astype(float)
@@ -310,14 +397,33 @@ class LoadData:
 
         #y_data_path = os.path.join(directory_path, 'labels')
         print("Loading data from", y_data_path)
-        y_ids, y_ts, y_labels = self.load_data(y_data_path, nranges, type=1)
+        if binary_label == True:
+            y_ids, y_ts, y_labels = self.load_data(y_data_path, nranges, type=1)
+        else:
+            y_ids, y_ts, y_labels = self.load_data(y_data_path, nranges, type=2)
         #y_data = np.array(y_labels, dtype=int)
         y_data = y_labels
 
         return x_data, y_data
 
+
+
+    def join_class_and_loc_data(self, x_data_path, y_data_path, nr):
+
+        print("Loading data from", x_data_path)
+        x_ids, x_ts, x_ranges = self.load_data(x_data_path, nr, type=0)
+        print("Scan ranges has been normalized")
+        print('x_ranges.shape:', x_ranges.shape)
+        x_data = x_ranges
+
+        print("Loading data from", y_data_path)
+        y_class_labels, y_loc_labels = self.load_class_and_loc_labels(y_data_path)
+
+        return x_data, y_class_labels, y_loc_labels
+
+
     
-    def join_formatted_data(self, x_data_path, y_data_path):
+    def join_formatted_data(self, x_data_path, y_data_path, binary_label=True):
 
         x_data = []
         y_data = []
@@ -344,7 +450,11 @@ class LoadData:
         for file in sorted(os.listdir(y_data_path)):
             if file.endswith('.npy'):
                 file_path = os.path.join(y_data_path, file)
-                y_labels = self.load_numpy_formatted_data(file_path, type=2)
+                if binary_label == True:
+                    y_labels = self.load_numpy_formatted_data(file_path, type=2)
+                else:
+                    y_labels = self.load_numpy_formatted_data(file_path, type=1)
+                    
                 print("loading file:", file, 'shape:', y_labels.shape)
                 if c == 0:
                     y_data = np.copy(y_labels)
@@ -375,6 +485,12 @@ class LoadData:
         print('Data saved in:')
         print(x_data_dir)
         print(y_data_dir)
+
+
+
+    def save_npy(self, data, save_name):
+        np.save(save_name, data)
+        
 
 
 
@@ -548,7 +664,9 @@ class LoadData:
                 # labels file
                 label_filename = str(file).replace('.wp', '_frog_labels.csv')
                 label_path = os.path.join(store_path, label_filename)
-                self.generate_frog_labels(seqs, timestamps, frog_scans, circles, label_path) #, generate_images=True, max_imgs=20
+                self.generate_frog_labels(seqs, timestamps, frog_scans, circles, label_path) #, generate_images=True, max_imgs=50
+
+
 
 
     def load_drow_people_dets(self, wpf):
@@ -608,11 +726,19 @@ class LoadData:
         scan = data[:,2:].astype(np.float32)
         sqs = data[:,0].astype(np.uint32)
         tms = data[:,1].astype(np.float32)
-        scan[scan >= self.drow_maxRange] = self.maxRange + 1 #replace 29.69 by 61.0
+        #scan[scan >= self.drow_maxRange] = self.maxRange + 1 #replace 29.69 by 61.0
         print("Sequences to take: %i ..." % len(seqs))
         
         indexes = [idx for idx, sq in enumerate(sqs) if sq in seqs]
         scans = [s for idx, s in enumerate(scan) if idx in indexes]
+        # for s in scans:
+        #     sxd, syd = self.scan_to_xy(s, self.maxPeopleRange, self.drow_laserFoV, frog=True)
+        #     #plt.subplots(2)
+        #     plt.scatter(sxd, syd, color='blue')
+        #     plt.grid()
+        #     titled = "DROW:" + str(len(sxd))
+        #     plt.ylabel(titled)
+        #     plt.show()
         scans = np.array(scans)
         scans = np.round(scans, decimals=3)
         timestamps = [t for idx, t in enumerate(tms) if idx in indexes]
@@ -680,7 +806,26 @@ class LoadData:
         # Transform the scan to the network format:
         # angle_increment 0.25º, FoV 180º, points=720
         frog_scans = self.format_drowscan_to_frog(scans, fill=upsampling)
-        
+        # for i, data in enumerate(frog_scans):
+            
+        #     sxd, syd = self.scan_to_xy(scans[i], self.maxPeopleRange, self.drow_laserFoV, frog=False)
+        #     sxf, syf = self.scan_to_xy(data, self.maxPeopleRange, self.frog_laserFoV, frog=False)
+
+        #     fig, axs = plt.subplots(2)
+        #     axs[0].scatter(sxd, syd, color='blue')
+        #     axs[0].grid()
+        #     titled = "DROW:" + str(len(sxd))
+        #     axs[0].set_ylabel(titled)
+        #     axs[1].scatter(sxf, syf, color='red')
+        #     axs[1].grid()
+        #     titlef = "FROG:" + str(len(sxf))
+        #     axs[1].set_ylabel(titlef)
+        #     #end_file = "_" + str(i) + ".png"
+        #     #img_filename = str(store_file).replace('.csv', end_file)
+        #     #plt.savefig(img_filename)
+        #     plt.show()
+            
+
         with open(store_file, "w") as outfile: 
             csv_columns = ['id','timestamp','ranges']
             writer = csv.writer(outfile, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE, escapechar=' ')
@@ -746,7 +891,7 @@ class LoadData:
 
         for s, seq, cs in zip(scans, seqs, circles):
             
-            sx, sy = self.scan_to_xy(s, self.maxPeopleRange, self.laserFoV) 
+            sx, sy = self.scan_to_xy(s, self.maxPeopleRange, self.laserFoV, frog=True) 
             scanxy = [*zip(sx, sy)]
             scanxy = np.array(scanxy)
 
@@ -761,53 +906,93 @@ class LoadData:
             for i in range(len(scanxy)):
                 clusters.append(p_info)
 
-            # iterate for each range and fill the clusters vector
-            for i in range(len(scanxy)):
+            # iterate for the pedestrian centers
+            for ip, p in enumerate(cs):
+                # iterate for each range and fill the clusters vector
+                for i in range(len(scanxy)):
 
-                # iterate for the pedestrian centers
-                for p in cs:
                     px = scanxy[i][0] - p['x']
                     py = scanxy[i][1] - p['y']
                     pd = math.sqrt(px*px + py*py)
                     if pd <= (p['r']+0.15) and pd < clusters[i][0]:
-                        clusters[i] = [pd, 1] #only one class
+                        clusters[i] = [pd, ip+1] 
                         
             array = np.asarray(clusters)
-            # store the label array
-            labels.append(array[:,1].astype(np.uint8))
+            label = array[:,1].astype(np.uint8)
+            #labels.append(array[:,1].astype(np.uint8))
+            l2 = np.array(label, copy=True)
+            for ic in range(1, len(cs)+1):
+                #index_mask = label == ic
+                indices = [i for i, l in enumerate(label) if l == ic]
+                for j in range(len(indices)-1):
+                    if indices[j+1]-indices[j] > 1:
+                        l2[indices[j]:indices[j+1]] = ic
+                    
+            # we need to insert an empty range between people that are very close
+            # so we can distinguish between only one person or more
+            for ib in range(len(l2)-1):
+                for ic in range(1, len(cs)+1):
+                    if ic == 1:
+                        if l2[ib]==ic and l2[ib+1]>l2[ib]:
+                            l2[ib+1] = 0
+
+                    elif l2[ib]==ic and (l2[ib+1]>l2[ib] or (l2[ib+1]<l2[ib] and l2[ib+1]!=0)):
+                        l2[ib+1] = 0
+
+            # Put all the identifiers to 1
+            l2[l2>1] = 1
+            l2[0] = 0
+            l2[-1] = 0
+            labels.append(l2)
 
             # Fill the label image
             if generate_images and img_counter < max_imgs:
                 
-                label_img = np.zeros((self.img_height, self.img_width), dtype=int)
-                classes = array[:,1].astype(np.uint8)
+                if(len(cs) >= 1): 
+                    classes = l2
+                    sx_label = np.asarray([xi for idx, xi in enumerate(sx) if classes[idx] == 1], dtype=np.float32)
+                    sy_label = np.asarray([yi for idy, yi in enumerate(sy) if classes[idy] == 1], dtype=np.float32)
+
+                    xaxis = list(np.array(np.linspace(0, 719, 720), dtype=np.int32))
+                    fig, axs = plt.subplots(2)
+                    #fig.suptitle('Vertically stacked subplots')
+                    axs[0].plot(xaxis, l2)
+                    #axs[0].scatter(xaxis, center_ranges, color='red', marker='x')
+                    axs[0].set_ylim([0, 1.05])
+                    axs[0].set_ylabel("drow people binary")
+                    axs[0].grid()
+
+                    axs[1].scatter(sx, sy, color='blue')
+                    axs[1].grid()
+                    axs[1].scatter(sx_label, sy_label, color='green', marker='x')
+                    axs[1].scatter([p['x'] for p in cs], [p['y'] for p in cs], color='red', marker='x')
+                    end_file = "_" + str(seq) + ".png"
+                    img_filename = str(store_file).replace('.csv', end_file)
+                    plt.savefig(img_filename)
+                    #plt.show()
+                    img_counter += 1
+
+                # label_img = np.zeros((self.img_height, self.img_width), dtype=int)
+                # classes = array[:,1].astype(np.uint8)
                 
-                sx_label = np.asarray([xi for idx, xi in enumerate(sx) if classes[idx] == 1], dtype=np.float32)
-                sy_label = np.asarray([yi for idy, yi in enumerate(sy) if classes[idy] == 1], dtype=np.float32)
-                px_label, py_label = self.worldToImg(sx_label, sy_label)
-                label_img[py_label, px_label] = 255
+                # sx_label = np.asarray([xi for idx, xi in enumerate(sx) if classes[idx] == 1], dtype=np.float32)
+                # sy_label = np.asarray([yi for idy, yi in enumerate(sy) if classes[idy] == 1], dtype=np.float32)
+                # px_label, py_label = self.worldToImg(sx_label, sy_label)
+                # label_img[py_label, px_label] = 255
 
-                ## This in case there are more than one class
-                # for idx in range(len(classes)):
-                #     if classes[idx] == 1:       # People class
-                #         cell = self.worldToImg(sx[idx], sy[idx])
-                #         if cell is not None:
-                #             label_img[cell[1], cell[0]] = 255  
+                # end_file = "_" + str(seq) + ".jpg"
+                # img_filename = str(store_file).replace('.csv', end_file)
+                # print("Saving label image: %s" % img_filename)
+                # cv2.imwrite(img_filename, label_img)
 
-                end_file = "_" + str(seq) + ".jpg"
-                img_filename = str(store_file).replace('.csv', end_file)
-                print("Saving label image: %s" % img_filename)
-                cv2.imwrite(img_filename, label_img)
-
-                input_img = np.zeros((self.img_height, self.img_width), dtype=int)
-                px, py = self.worldToImg(sx, sy)
-                input_img[py, px] = 255
-                end_file = "scan_" + str(seq) + ".jpg"
-                input_filename = str(store_file).replace('labels.csv', end_file)
-                print("Saving  scan image: %s" % input_filename)
-                cv2.imwrite(input_filename, input_img)
-                
-                img_counter += 1
+                # input_img = np.zeros((self.img_height, self.img_width), dtype=int)
+                # px, py = self.worldToImg(sx, sy)
+                # input_img[py, px] = 255
+                # end_file = "scan_" + str(seq) + ".jpg"
+                # input_filename = str(store_file).replace('labels.csv', end_file)
+                # print("Saving  scan image: %s" % input_filename)
+                # cv2.imwrite(input_filename, input_img)
+                # img_counter += 1
 
 
         # write the label file
@@ -824,6 +1009,366 @@ class LoadData:
                 writer.writerow(row)
 
         print('Label file created: ', store_file)
+
+
+
+
+    def circles_to_class_and_loc_labels(self, circles_path, labels_path, max_people):
+
+        def _elementOrder(e):
+            return e[0]
+
+
+        try:
+            os.mkdir(labels_path)
+        except FileExistsError:
+            print ("Labels directory already exists. Continue...")
+        except OSError:
+            print ("Creation of the directory %s failed!" % labels_path)
+
+        for file in sorted(os.listdir(circles_path)):
+
+            print("loading circles file:", file)
+            circles_file = os.path.join(circles_path, file)
+            idcir, timestampcir, circles = self.load_circles_csv_file(circles_file)
+
+            classfile = str(file).replace("_circles.csv", "_class_labels.csv")
+            locfile = str(file).replace("_circles.csv", "_loc_labels.csv")
+            #print("Gererating new label files", classfile, "and", locfile, "...")
+
+            class_labels = []
+            loc_labels = []
+
+            for cir in circles:
+                class_label = np.zeros(max_people, dtype=np.int32)
+                loc_label = np.zeros((max_people, 2), dtype=np.float32)
+                pdetected = len(cir['circles']) if len(cir['circles']) <= max_people else max_people
+                if pdetected > 0:
+                    class_label[:pdetected] = 1
+                    people = []
+                    for i, c in enumerate(cir['circles']):
+                        rphi = self.xy_to_rphi(c['x'], c['y'])
+                        people.append(rphi)
+                    #we order the people in ascending range    
+                    people.sort(key=_elementOrder)
+                    for i in range(pdetected):
+                        loc_label[i]=people[i]
+                    
+                class_labels.append(class_label)
+                loc_labels.append(loc_label)
+
+
+            # store the new class labels file
+            newl_file = os.path.join(labels_path, classfile)
+            # write the label file
+            with open(newl_file, "w") as outfile: 
+                #csv_columns = ['id','timestamp','label']
+                writer = csv.writer(outfile, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE, escapechar=' ')
+                #writer.writerow(csv_columns)
+                for i, cls in enumerate(class_labels):
+                    row = []
+                    for item in cls:
+                        row.append(int(item))
+                    writer.writerow(row)
+            print('New Label file created: ', newl_file)
+
+            # store the new localization labels file
+            newl_file = os.path.join(labels_path, locfile)
+            # write the label file
+            with open(newl_file, "w") as outfile: 
+                #csv_columns = ['id','timestamp','label']
+                writer = csv.writer(outfile, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE, escapechar=' ')
+                #writer.writerow(csv_columns)
+                for i, l in enumerate(loc_labels):
+                    row = []
+                    for item in l:
+                        row.append(np.round(item[0], decimals=3))
+                        row.append(np.round(item[1], decimals=3))
+                    writer.writerow(row)
+            print('New Label file created: ', newl_file)
+
+            
+
+
+
+
+
+
+
+    def binary_to_peoplebin_label(self, scans_path, circles_path, labels_path, gaussianlabel=False):
+
+        for file in sorted(os.listdir(scans_path)):
+
+            new_labels = []
+
+            # load scans
+            print("loading scan file:", file)
+            scan_file = os.path.join(scans_path, file)
+            idscan, timestampscan, scan = self.load_csv_file(scan_file)
+            la = self.laser_angles(len(scan[0]))
+
+
+            # load circles
+            cfile = str(file).replace("_scans.csv", "_circles.csv")
+            print("loading circles file:", cfile)
+            circles_file = os.path.join(circles_path, cfile)
+            idcir, timestampcir, circles = self.load_circles_csv_file(circles_file)
+
+            
+            lfile = str(file).replace("_scans.csv", "_binpeople_labels.csv")
+            if gaussianlabel == True:
+                lfile = str(file).replace("_scans.csv", "_regpeople_labels.csv")
+
+            print("Gererating new label file:", lfile, "...")
+            for i, s in enumerate(scan):
+                sx, sy = self.scan_to_xy(s, self.maxPeopleRange, self.frog_laserFoV) 
+                scanxy = [*zip(sx, sy)]
+                scanxy = np.array(scanxy)
+
+                p_info = [61., 0]
+                clusters = []
+                for j in range(len(scanxy)):
+                    clusters.append(p_info)
+
+                l2 = np.zeros(len(s), dtype=np.int32)
+                l3 = np.zeros(len(s), dtype=np.float32)
+                circ = circles[i]
+                if len(circ['circles']) > 0:
+                    for ci, c in enumerate(circ['circles']):
+                        #print("person", ci+1)
+                        #polar = self.xy_to_rphi(c[0],c[1])            
+                        for idx, sp in enumerate(scanxy):
+                            px = sp[0] - c['x']
+                            py = sp[1] - c['y']
+                            dist = math.sqrt(px*px + py*py)
+                            #print("Distance to person", ci+1, ":", dist)
+                            if dist <= float(c['r']) and dist < clusters[idx][0]:
+                                #print("Distance to person", ci+1, ":", dist)
+                                clusters[idx] = [dist, ci+1]
+                
+                    array = np.asarray(clusters)
+                    # store the label array
+                    label = array[:,1].astype(np.int32)
+                    #print(label)
+                    l2 = np.array(label, copy=True)
+                    for ic in range(1, len(circ['circles'])+1):
+                        #index_mask = label == ic
+                        indices = [i for i, l in enumerate(label) if l == ic]
+                        for j in range(len(indices)-1):
+                            if indices[j+1]-indices[j] > 1:
+                                l2[indices[j]:indices[j+1]] = ic
+                    
+                    # we need to insert an empty range between people that are very close
+                    # so we can distinguish between only one person or more
+                    for ib in range(len(l2)-1):
+                        for ic in range(1, len(circ['circles'])+1):
+                            if ic == 1:
+                                if l2[ib]==ic and l2[ib+1]>l2[ib]:
+                                    l2[ib+1] = 0
+
+                            elif l2[ib]==ic and (l2[ib+1]>l2[ib] or (l2[ib+1]<l2[ib] and l2[ib+1]!=0)):
+                                l2[ib+1] = 0
+
+                    # Put all the identifiers to 1
+                    l2[l2>1] = 1
+                    l2[0] = 0
+                    l2[-1] = 0
+                   
+                    if gaussianlabel==True:
+                        l3 = np.array(l2, dtype=np.float32, copy=True)
+                        l3[0] = 0.0
+                        l3[-1] = 0.0
+
+                        #transform to a set of gaussian
+                        prev_cl = 0
+                        init = -1
+                        end = -1
+                        for id, cl in enumerate(l3):
+                            if cl == 1 and prev_cl == 0:
+                                init=id
+                            if cl == 0 and prev_cl == 1:
+                                end=id-1
+                    
+                            prev_cl = int(l3[id])
+
+                            if(init!=-1 and end!=-1 and (end-init)>1):
+                                #print("Person found! init:", init, "end:", end, ". len:", (end-init)+1)
+                                center=[]
+                                #TODO: count the ranges and split it in two
+                                # take into account we need one or two central ranges.
+                                # divide 0.6 between the number of slots of each side
+                                even = True if((end - init)+1)%2==0 else False
+                                # two central ranges
+                                if even == True:
+                                    center.append(init + ((end - init)+1)/2 - 1)
+                                    center.append(init + ((end - init)+1)/2)
+                                    #print("Even! centers:", center)
+                                    nbins = ((end - init)+1)/2 - 1
+                                    inc = 0.6/nbins
+                                else:
+                                    center.append(init + (end - init)/2)
+                                    #print("Odd! centers:", center)
+                                    nbins = (end - init)/2
+                                    inc = 0.6/nbins
+
+                                for icount in range(1, int(nbins)+1):
+                                    l3[int(center[-1])+icount] = self.gaussian(inc*icount)
+                                    l3[int(center[0])-icount] =  self.gaussian(inc*icount)
+
+                                                
+                                init = -1
+                                end = -1
+                        
+                
+                if gaussianlabel==True:
+                    new_labels.append(l3)
+                else:
+                    new_labels.append(l2)
+
+
+            # store the new labels file
+            newl_file = os.path.join(labels_path, lfile)
+            # write the label file
+            with open(newl_file, "w") as outfile: 
+                csv_columns = ['id','timestamp','label']
+                writer = csv.writer(outfile, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE, escapechar=' ')
+                writer.writerow(csv_columns)
+                for i, data in enumerate(new_labels):
+                    row = []
+                    row.append(int(idscan[i]))
+                    row.append(timestampscan[i]) 
+                    for item in data:
+                        if gaussianlabel==True:
+                            row.append(np.round(item, decimals=3))
+                        else:
+                            row.append(int(item))
+                    writer.writerow(row)
+
+            print('New Label file created: ', newl_file)
+
+        
+
+
+
+
+
+    def binary_to_gaussian_label(self, scans_path, circles_path, labels_path):
+
+        ming = 0.4
+        # join the scans
+        # If the file naming is correct, 'sorted' gives the correct order 
+        for file in sorted(os.listdir(scans_path)):
+
+            new_labels = []
+
+            print("loading scan file:", file)
+            scan_file = os.path.join(scans_path, file)
+
+            idscan, timestampscan, scan = self.load_csv_file(scan_file)
+
+            labelfile = str(file).replace("_scans.csv", "_labels.csv")
+            label_file = os.path.join(labels_path, labelfile)
+            idscan, timestampscan, label = self.load_csv_file(label_file)
+            label = np.array(label, dtype=np.int8)
+
+            la = self.laser_angles(len(scan[0]))
+
+            cfile = str(file).replace("_scans.csv", "_circles.csv")
+            print("loading circles file:", cfile)
+            circles_file = os.path.join(circles_path, cfile)
+            idcir, timestampcir, circles = self.load_circles_csv_file(circles_file)
+
+            
+            lfile = str(file).replace("_scans.csv", "_gauss_labels.csv")
+            print("Gererating new label file:", lfile, "...")
+            for i, s in enumerate(scan):
+                sx, sy = self.scan_to_xy(s, self.maxPeopleRange, self.frog_laserFoV) 
+                scanxy = [*zip(sx, sy)]
+                scanxy = np.array(scanxy)
+
+                # array with the distances to the centers and Gaussian values
+                p_info = [self.maxRange+1, 0.]
+                gau_ranges = []
+                for j in range(len(scanxy)):
+                    gau_ranges.append(p_info)
+
+                #print("gaussian:", gau_ranges)
+
+                circ = circles[i]
+                if len(circ['circles']) > 0:
+                    #print("scan", i+1, "has", len(circ['circles']), "people")
+                    # iterate for the pedestrian centers
+                    for p in circ['circles']:
+                        polar = self.xy_to_rphi(p['x'],p['y'])
+                        min = 2*math.pi
+                        index = -1
+                        for i in range(len(la)):
+                            angdiff = abs(polar[1] - la[i])
+                            if angdiff < min:
+                                min = angdiff
+                                index = i 
+
+                        # center range to value 1
+                        gau_ranges[index] = [gau_ranges[index][0], 1.0]
+                        
+                        # iterate for each range and fill the gua_ranges vector
+                        for i in range(len(scanxy)):
+                            px = scanxy[i][0] - p['x']
+                            py = scanxy[i][1] - p['y']
+                            pdist = math.sqrt(px*px + py*py)
+                            gv = self.gaussian(pdist)
+                            if gv >= ming and pdist < gau_ranges[i][0] and gau_ranges[i][1] < 1.0:
+                                gau_ranges[i] = [pdist, gv] 
+                            elif pdist < gau_ranges[i][0]:
+                                gau_ranges[i] = [pdist, gau_ranges[i][1]]
+
+                        #Try to fill the gaussian value of ranges in the vecinity of a center that are far.
+                        # check 20 ranges to each side of the center range, and interpolate values
+                        # lower_idx = (index-20) if (index-20)>0 else 0 
+                        # upper_idx = (index+20) if (index+20)<(len(gau_ranges)-1) else (len(gau_ranges)-1)
+                        # for i in range(index, lower_idx, -1):
+                        #     gvalue = gau_ranges[i][1]
+                        #     if gvalue == 0.0:
+
+
+                         
+
+                    #print("Gauranges:", gau_ranges)
+
+                # new label array
+                array = np.array(gau_ranges, copy=True)
+                label = array[:,1].astype(np.float32)
+                new_labels.append(label)
+
+            # store the new labels file
+            newl_file = os.path.join(labels_path, lfile)
+            # write the label file
+            with open(newl_file, "w") as outfile: 
+                csv_columns = ['id','timestamp','label']
+                writer = csv.writer(outfile, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE, escapechar=' ')
+                writer.writerow(csv_columns)
+                for i, data in enumerate(new_labels):
+                    row = []
+                    row.append(int(idscan[i]))
+                    row.append(timestampscan[i]) 
+                    labs = np.round(data, decimals=3)
+                    for item in labs:
+                        row.append(item)
+                    writer.writerow(row)
+
+            print('New Label file created: ', newl_file)
+
+
+                
+
+
+
+    def gaussian(self, x, mu=0., sig=0.39894228):
+        return np.exp(-np.power(x -mu, 2.) /( 2* np.power(sig, 2.)))
+        
+
+
+        
 
 
 
@@ -934,29 +1479,33 @@ class LoadData:
         scan_msg.intensities = []
         scan_msg.header.frame_id = 'laserscan'
 
-        try:
-            bag_name = os.path.join(path, 'complete.bag')
-            with rosbag.Bag(bag_name, 'w') as outbag:
+        #try:
+        bag_name = os.path.join(path, 'complete.bag')
+        with rosbag.Bag(bag_name, 'w') as outbag:
+            t = 0
+            for i, ranges in enumerate(scans):
+                
+                #if(i == 0):
+                #    t = scan_ts[i]
+                #else:
+                #    t += 0.025
+                scan_msg.ranges = ranges
+                ts = rospy.Time.from_sec(scan_ts[i]) #t
+                scan_msg.header.stamp = ts
+                #sensor_msgs/LaserScan message
+                outbag.write('laserscan', scan_msg, ts)
+                #print('people detected scan ', i, ': ', len(people['circles']))
+                people_msg, marker_msg = self.build_messages(people[i], ts, scan_msg.header.frame_id) 
+                #people_msgs/People message
+                outbag.write(people_topic, people_msg, ts)
+                #visualization_makers/MarkerArray
+                outbag.write(marker_topic, marker_msg, ts)
+            outbag.close()
 
-                for i, ranges in enumerate(scans):
-                        
-                    scan_msg.ranges = ranges
-                    ts = rospy.Time.from_sec(scan_ts[i])
-                    scan_msg.header.stamp = ts
-                    #sensor_msgs/LaserScan message
-                    outbag.write('laserscan', scan_msg, ts)
-                    #print('people detected scan ', i, ': ', len(people['circles']))
-                    people_msg, marker_msg = self.build_messages(people[i], ts, scan_msg.header.frame_id) 
-                    #people_msgs/People message
-                    outbag.write(people_topic, people_msg, ts)
-                    #visualization_makers/MarkerArray
-                    outbag.write(marker_topic, marker_msg, ts)
-                outbag.close()
-
-        except:
-            print("-------------------------------------")
-            print('ERROR!!! Bag file could not be created!')
-            print("-------------------------------------")
+        # except:
+        #     print("-------------------------------------")
+        #     print('ERROR!!! Bag file could not be created!')
+        #     print("-------------------------------------")
         print('')
         print('Bag succesfully recorded and stored in: ', bag_name)
 
@@ -1027,7 +1576,7 @@ class LoadData:
     # ranges data (x_data) already normalized!
     # angle_inc_deg is in degrees
     # This only allows angle increments of 0.25 or 0.5 degrees
-    def format_data_for_learning(self, x_data, y_data, nr, angle_inc_deg, fill=True, data_normalized=True):
+    def format_data_for_learning(self, x_data, y_data, nr, angle_inc_deg, fill=True, data_normalized=True, binary_label=True):
 
         print("format_data_for_learning:")
         xdata = []
@@ -1041,7 +1590,10 @@ class LoadData:
 
 
         basic_ranges = [1.0] * self.nPoints #[self.maxPeopleRange + 1] * self.nPoints
-        basic_label = [0] * self.nPoints
+        if binary_label == True:
+            basic_label = [0] * self.nPoints
+        else:
+            basic_label = [0.0] * self.nPoints
         numr = len(x_data[0])  # must be equal to nr
         inputFoV = (numr - 1) * np.radians(angle_inc_deg)
         
@@ -1069,7 +1621,10 @@ class LoadData:
                     ydata.append(l)
 
                 xdata = np.asarray(xdata, dtype=np.float32)
-                ydata = np.asarray(ydata, dtype=np.int8)
+                if binary_label == True:
+                    ydata = np.asarray(ydata, dtype=np.int8)
+                else:
+                    ydata = np.asarray(ydata, dtype=np.flaot32)
                 return xdata, ydata
 
 
@@ -1151,5 +1706,9 @@ class LoadData:
                     ydata.append(l)
 
         xdata = np.asarray(xdata, dtype=np.float32)
-        ydata = np.asarray(ydata, dtype=np.int8)
+        if binary_label == True:
+            ydata = np.asarray(ydata, dtype=np.int8)
+        else:
+            ydata = np.asarray(ydata, dtype=np.flaot32)
+
         return xdata, ydata
