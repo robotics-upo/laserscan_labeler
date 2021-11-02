@@ -236,6 +236,7 @@ class LoadData:
 
             file_path = os.path.join(y_data_path, file)
 
+            # Classification
             if file.endswith('_class_labels.csv'):
                 print("loading file:", file)
                 try:
@@ -243,10 +244,10 @@ class LoadData:
                 except IOError:
                     print("ERROR: file data %s, could NOT be loaded!" % file_path)
                     return
-                print("class data shape:")
-                print(cdata.shape)
+                print("class data shape:", cdata.shape)
                 classes = np.array(cdata, dtype=int)
 
+                # Localization 
                 locfile = str(file).replace('_class_labels.csv', '_loc_labels.csv')
                 file2_path = os.path.join(y_data_path, locfile)
                 print("loading file:", locfile)
@@ -255,20 +256,25 @@ class LoadData:
                 except IOError:
                     print("ERROR: file data %s, could NOT be loaded!" % file_path)
                     return
-                #print("localization data shape:")
-                #print(ldata.shape)
+                
                 locs = np.reshape(ldata, (-1, int(len(ldata[0])/2), 2))
-                #print("localization data shape:")
-                print(locs.shape)
+                print("localization data shape:", locs.shape)
                 #print("ldata[0]:", locs[0])
+                #print("max range:", np.max(locs[:,:,0]))
+                indexes = locs[:,:,0]>(self.maxPeopleRange + 1)
+                #print("indexes:", indexes)
+                #print("indexes.shape:", indexes.shape)
+                locs[indexes] = 0.0
                 #Normalize range
                 locs[:,:,0] = locs[:,:,0]/(self.maxPeopleRange + 1)
                 #print("ldata[0] range normalized:", locs[0])
                 # normalize angle
-                # First, convert to positive value [0,2pi]
+                # First, convert to positive values in the range [0,2pi]
                 for i, people in enumerate(locs):
                     for j, p in enumerate(people):
-                        if p[1] < 0:
+                        if p[0] == 0.0:
+                            p[1] = 0.0
+                        elif p[1] < 0:
                             locs[i,j,1] = p[1]*(-1.0)
                         elif p[1] > 0: 
                             locs[i,j,1] = 2.0*np.pi - p[1] 
@@ -276,7 +282,12 @@ class LoadData:
                 #print("ldata[0] angle in the the range[0,2pi]:", locs[0])
                 # now, normalize in the whole circunference        
                 locs[:,:,1] = locs[:,:,1]/(2*np.pi)
+                #if np.any(locs[:,:,1] > 1.0):
+                    #print("Angles > 1.0!!!!")
+                
                 print("Localization data (r,phi) has been normalized")
+                print("max range norm:", np.max(locs[:,:,0]))
+                print("max angle norm:", np.max(locs[:,:,1]))
                 #print("ldata[0] normalized:", locs[0])
 
                 # denor = np.array(locs[0], copy=True)
