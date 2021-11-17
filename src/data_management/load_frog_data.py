@@ -1032,7 +1032,7 @@ class LoadData:
 
 
 
-    def circles_to_class_and_loc_labels(self, circles_path, labels_path, max_people, order_type=1, nranges=720, ares=0.25, polar=0):
+    def circles_to_class_and_loc_labels(self, circles_path, labels_path, max_people, order_type=1, nranges=720, ares=0.25, polar=True):
 
         #for polar
         def _rangeOrder(e):
