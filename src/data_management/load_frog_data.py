@@ -227,7 +227,7 @@ class LoadData:
 
 
 
-    def load_class_and_loc_labels(self, y_data_path):
+    def load_class_and_loc_labels(self, y_data_path, norm_type=1, polar=False):
 
         c = 0
         class_labels = []
@@ -257,50 +257,51 @@ class LoadData:
                     print("ERROR: file data %s, could NOT be loaded!" % file_path)
                     return
                 
+                ldata[ldata > (self.maxPeopleRange + 1)] = 0.0
                 locs = np.reshape(ldata, (-1, int(len(ldata[0])/2), 2))
                 print("localization data shape:", locs.shape)
-                #print("ldata[0]:", locs[0])
-                #print("max range:", np.max(locs[:,:,0]))
-                indexes = locs[:,:,0]>(self.maxPeopleRange + 1)
-                #print("indexes:", indexes)
-                #print("indexes.shape:", indexes.shape)
-                locs[indexes] = 0.0
-                #Normalize range
-                locs[:,:,0] = locs[:,:,0]/(self.maxPeopleRange + 1)
-                #print("ldata[0] range normalized:", locs[0])
-                # normalize angle
-                # First, convert to positive values in the range [0,2pi]
-                for i, people in enumerate(locs):
-                    for j, p in enumerate(people):
-                        if p[0] == 0.0:
-                            p[1] = 0.0
-                        elif p[1] < 0:
-                            locs[i,j,1] = p[1]*(-1.0)
-                        elif p[1] > 0: 
-                            locs[i,j,1] = 2.0*np.pi - p[1] 
-
-                #print("ldata[0] angle in the the range[0,2pi]:", locs[0])
-                # now, normalize in the whole circunference        
-                locs[:,:,1] = locs[:,:,1]/(2*np.pi)
-                #if np.any(locs[:,:,1] > 1.0):
-                    #print("Angles > 1.0!!!!")
                 
-                print("Localization data (r,phi) has been normalized")
-                print("max range norm:", np.max(locs[:,:,0]))
-                print("max angle norm:", np.max(locs[:,:,1]))
+                # NORMALIZATION
+                if norm_type == 1: # [0,1]
+                    
+                    if polar == False:
+                        # regular normalization of cartesian xy [-11,11] to [0,1]
+                        locs = self.normalize(locs, -(self.maxPeopleRange + 1), ((self.maxPeopleRange + 1)*2))
+                    else:
+                        # polar r[0,11] to [0,1]
+                        locs[:,:,0] = locs[:,:,0]/(self.maxPeopleRange + 1)
+                        # polar phi[-pi,pi] to [0,1]
+                        locs[:,:,1] = self.normalize(locs[:,:,1], -np.pi, 2*np.pi)
+
+
+                elif norm_type == 2: # [-1,1]
+                    if polar == False:
+                        # normalization of cartesian xy [-11,11] to the range [-1,1]
+                        locs = self.normalizeCustom(locs, -(self.maxPeopleRange + 1), ((self.maxPeopleRange + 1)*2), -1, 1)
+                    else:
+                        # polar r[0,11] to [-1,1]
+                        locs[:,:,0] = self.normalizeCustom(locs[:,:,0], 0, (self.maxPeopleRange + 1), -1, 1)
+                        # polar phi[-pi,pi] to [-1,1]
+                        locs[:,:,1] = self.normalizeCustom(locs[:,:,1], -np.pi, 2*np.pi, -1, 1)
+                else:
+                    print("NORMALIZATION TYPE (", norm_type, ") NOT ALLOWED! Using [0,1]!!!")
+                    locs = self.normalize(locs, -(self.maxPeopleRange + 1), ((self.maxPeopleRange + 1)*2))
+            
+                
+                if polar == True:
+                    print("Localization data (r,phi) has been normalized", end='')
+                else:
+                    print("Localization data (x,y) has been normalized", end='')
+                if norm_type == 2:
+                    print("in the range [-1,1]")
+                else:
+                    print("in the range [-0,1]")
+                print("max x norm:", np.max(locs[:,:,0]), "min x norm:", np.min(locs[:,:,0]))
+                print("max y norm:", np.max(locs[:,:,1]), "min y norm:", np.min(locs[:,:,1]))
                 #print("ldata[0] normalized:", locs[0])
 
-                # denor = np.array(locs[0], copy=True)
-                # denor[:,0] = denor[:,0] * (self.maxPeopleRange + 1)
-                # denor[:,1] = denor[:,1] * (2*np.pi)
-                # for d in denor:
-                #     if d[1] != 0 and d[1] < np.pi:
-                #         d[1] = d[1]*(-1)
-                #     elif d[1]!=0 and d[1] > np.pi:
-                #         d[1] = 2.0*np.pi - d[1] 
-                # print("ldata[0] denormalized:", denor)
 
-
+                # accumulate the data
                 if c == 0:
                     class_labels = classes
                     loc_labels = locs
@@ -313,7 +314,13 @@ class LoadData:
 
             
 
-        
+    def normalize(self, x, xmin, range):
+        return ((x-xmin)/range)
+
+
+    def normalizeCustom(self, x, xmin, range, a, b):
+        return (a + (((x-xmin)*(b-a))/range))
+
 
 
 
@@ -419,16 +426,16 @@ class LoadData:
 
 
 
-    def join_class_and_loc_data(self, x_data_path, y_data_path, nr):
+    def join_class_and_loc_data(self, x_data_path, y_data_path, nr, norm_type=1, polar=False):
 
         print("Loading data from", x_data_path)
         x_ids, x_ts, x_ranges = self.load_data(x_data_path, nr, type=0)
-        print("Scan ranges has been normalized")
+        print("Scan ranges has been normalized ([0,1])")
         print('x_ranges.shape:', x_ranges.shape)
         x_data = x_ranges
 
         print("Loading data from", y_data_path)
-        y_class_labels, y_loc_labels = self.load_class_and_loc_labels(y_data_path)
+        y_class_labels, y_loc_labels = self.load_class_and_loc_labels(y_data_path, norm_type=norm_type, polar=polar)
 
         return x_data, y_class_labels, y_loc_labels
 
@@ -624,7 +631,8 @@ class LoadData:
                     # DROW coordinates: x->forward, y->right (laser upsidedown?)
                     # So, we negate the y coordinate to comply with DROW laser frame
                     polar = np.round(self.xy_to_rphi(p['x'], -p['y']), decimals=3)
-                    circ_row.append(list(polar))
+                    if p[0] <= (self.maxPeopleRange + 1):
+                        circ_row.append(list(polar))
 
             polar_cir.append(circ_row)
 
@@ -1024,10 +1032,19 @@ class LoadData:
 
 
 
-    def circles_to_class_and_loc_labels(self, circles_path, labels_path, max_people):
+    def circles_to_class_and_loc_labels(self, circles_path, labels_path, max_people, order_type=1, nranges=720, ares=0.25, polar=0):
 
-        def _elementOrder(e):
+        #for polar
+        def _rangeOrder(e):
             return e[0]
+
+        # order by polar angle
+        def _angleOrder(e):
+            return e[1]
+
+        # cartesian
+        def _elementOrder(e):
+            return np.hypot(e[0], e[1])
 
 
         try:
@@ -1050,23 +1067,69 @@ class LoadData:
             class_labels = []
             loc_labels = []
 
-            for cir in circles:
-                class_label = np.zeros(max_people, dtype=np.int32)
-                loc_label = np.zeros((max_people, 2), dtype=np.float32)
-                pdetected = len(cir['circles']) if len(cir['circles']) <= max_people else max_people
-                if pdetected > 0:
-                    class_label[:pdetected] = 1
-                    people = []
-                    for i, c in enumerate(cir['circles']):
-                        rphi = self.xy_to_rphi(c['x'], c['y'])
-                        people.append(rphi)
-                    #we order the people in ascending range    
-                    people.sort(key=_elementOrder)
-                    for i in range(pdetected):
-                        loc_label[i]=people[i]
-                    
-                class_labels.append(class_label)
-                loc_labels.append(loc_label)
+            # Order by the closest people at the beggining of the array 
+            if order_type == 1:
+
+                for cir in circles:
+                    class_label = np.zeros(max_people, dtype=np.int32)
+                    loc_label = np.zeros((max_people, 2), dtype=np.float32)
+                    pdetected = len(cir['circles']) if len(cir['circles']) <= max_people else max_people
+                    if pdetected > 0:
+                        class_label[:pdetected] = 1
+                        people = []
+                        for i, c in enumerate(cir['circles']):
+                            if polar == True:
+                                rphi = self.xy_to_rphi(c['x'], c['y'])
+                                people.append(rphi)
+                            else:
+                                people.append([c['x'], c['y']])
+                        #we order the people in ascending range 
+                        if polar == True:
+                            people.sort(key=_rangeOrder)
+                        else:   
+                            people.sort(key=_elementOrder)
+
+                        for i in range(pdetected):
+                            loc_label[i]=people[i]
+                        
+                    class_labels.append(class_label)
+                    loc_labels.append(loc_label)
+
+
+            # order people according to the scan order
+            else:
+                binsize = np.floor(nranges/max_people)
+                for cir in circles:
+                    class_label = np.zeros(max_people, dtype=np.int32)
+                    loc_label = np.zeros((max_people, 2), dtype=np.float32)
+                    pdetected = len(cir['circles']) if len(cir['circles']) <= max_people else max_people
+                    count = 0
+                    if pdetected > 0:
+                        #people_cartesian = []
+                        people_polar = []
+                        for i, c in enumerate(cir['circles']):
+                            rphi = self.xy_to_rphi(c['x'], c['y'])
+                            people_polar.append(rphi)
+                            count+=1
+                            if count == pdetected:
+                                break
+                        people_polar.sort(key=_angleOrder)
+                        for p in people_polar:
+                            index = np.rint((np.pi/2 + p[1])/np.radians(ares)) # - 1
+                            bin = int(np.floor(index/binsize))
+                            print("index:", index, " bin:", bin)
+                            if bin == max_people:
+                                bin = bin-1
+                                print("\tbin fix:", bin)
+                            class_label[bin] = 1
+                            if polar == True:
+                                loc_label[bin] = [p[0], p[1]]
+                            else:
+                                x, y = self.rphi_to_xy(p[0], p[1])
+                                loc_label[bin] = [x, y]
+
+                    class_labels.append(class_label)
+                    loc_labels.append(loc_label)
 
 
             # store the new class labels file

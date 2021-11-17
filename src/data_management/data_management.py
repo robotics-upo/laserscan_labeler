@@ -94,8 +94,10 @@ def merge_files(dataloader):
 
 
     else:
+        norm_type = int(input('Localization data will be normalized. Which range do you want to use? Type 1 for [0,1], or 2 for [-1,1]: '))
+        is_polar = int(input("Is the localization data in polar coordinates or cartesian? Type '0' for cartesian or '1' for polar: "))
         try:
-            x_data, yc_data, yl_data = dataloader.join_class_and_loc_data(x_data_path, y_data_path, nr)
+            x_data, yc_data, yl_data = dataloader.join_class_and_loc_data(x_data_path, y_data_path, nr, norm_type=norm_type, polar=is_polar)
             print("Data loaded:")
             print('x_data shape:', x_data.shape, 'type:', x_data.dtype)
             print('y_class_data shape:', yc_data.shape, 'type:', yc_data.dtype)
@@ -206,7 +208,14 @@ def circles_to_class_and_loc_labels(dataloader):
     circles_path = os.path.join(path, 'circles')
     labels_path = os.path.join(path, 'class_and_loc_labels')
     max_people = int(input('How many people could be detected at the same time (the maximum): '))
-    dataloader.circles_to_class_and_loc_labels(circles_path, labels_path, max_people)
+    print("Which order do you want to use?")
+    ordertype = int(input("Type '1' for ordering by the closest people; or type '2' for ordering according to the scan order: "))
+    nranges = int(input('How many range values do we have? [720 for frog scan]: '))
+    angle_res = float(input('What is the angle resolution of the scan? [0.25 degrees for frog scan]: '))
+    print('Do you want to store the localization data in polar coords or cartesian coords?')
+    coord_type = int(input("Type '1' for polar or '0' for cartesian: "))
+    dataloader.circles_to_class_and_loc_labels(circles_path, labels_path, max_people, order_type=ordertype, nranges=nranges, ares=angle_res, polar=coord_type)
+
 
 
 def binary_to_gaussian_labels(dataloader):
