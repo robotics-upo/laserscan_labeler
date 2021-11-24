@@ -50,7 +50,6 @@ def merge_files(dataloader):
         print('The program will merge the files of different sessions located in the directories "scans" (to build x_data) and "regression_labels" (to build y_data).')
     else:
         print('The program will merge the files of different sessions located in the directories "scans" (to build x_data) and "class_and_loc_labels" (to build y_data).')
-    print('Range data will be also normalized.')
     path = input('So please, type the base directory containing these directories: ')
     x_data_path = os.path.join(path, 'scans')
     if(bin==1):
@@ -60,12 +59,18 @@ def merge_files(dataloader):
     else:
         y_data_path = os.path.join(path, 'class_and_loc_labels')
 
+    normalize = input('Do you want to normalize the data? Type "y" or "n":')
+    if(normalize == 'y' or normalize == "yes"):
+        normalize = True
+    else:
+        normalize = False
+
     nr = int(input("please type the number of ranges of the laser data (720 in Frog, 450 in Drow): "))
     angle_inc_degrees = float(input("please introduce the angle increment in degrees of the laser data (0.25 in Frog, 0.5 in Drow): "))
     
     if(bin<2):
         try:
-            x_data, y_data = dataloader.join_data(x_data_path, y_data_path, nr, binary_label=bin)
+            x_data, y_data = dataloader.join_data(x_data_path, y_data_path, nr, binary_label=bin, norm=normalize)
         except:
             print("ERROR: file data could NOT be loaded from: %s" % path)
             return False  #, x_data, y_data
@@ -77,16 +82,12 @@ def merge_files(dataloader):
         format = input('Do you want to save the data in the format of the learning network [1440 ranges, 0.25 degrees inc]? (type "y" or "n"): ')
         if(format == 'y'):
             print('Now the data will be transformed to the format of the learning network...')
-            x_data, y_data = dataloader.format_data_for_learning(x_data, y_data, nr, angle_inc_degrees, data_normalized=True)
+            x_data, y_data = dataloader.format_data_for_learning(x_data, y_data, nr, angle_inc_degrees, data_normalized=normalize)
             print()
             print("New data shape:")
             print('x_data shape:', x_data.shape, 'type:', x_data.dtype)
             print('y_data shape:', y_data.shape, 'type:', y_data.dtype)
-            # for i, d in enumerate(x_data):
-            #     if i>0:
-            #         comparison = x_data[i] == x_data[i-1]
-            #         if comparison.all():
-            #             print ("scan", i, "equals to scan", i-1)
+
         print()
         print('The data will be saved in', path, 'with names "[prefix]_x_data.npy" and "[prefix]_y_data.npy"')
         prefix = input('Type a prefix for the new files: ')
@@ -94,8 +95,12 @@ def merge_files(dataloader):
 
 
     else:
-        norm_type = int(input('Localization data will be normalized. Which range do you want to use? Type 1 for [0,1], or 2 for [-1,1]: '))
-        is_polar = int(input("Is the localization data in polar coordinates or cartesian? Type '0' for cartesian or '1' for polar: "))
+        if normalize == True:
+            norm_type = int(input('Localization data will be normalized. Which range do you want to use? Type 1 for [0,1], or 2 for [-1,1]: '))
+            is_polar = int(input("Is the localization data in polar coordinates or cartesian? Type '0' for cartesian or '1' for polar: "))
+        else:
+            norm_type = 0
+            is_polar = 0
         try:
             x_data, yc_data, yl_data = dataloader.join_class_and_loc_data(x_data_path, y_data_path, nr, norm_type=norm_type, polar=is_polar)
             print("Data loaded:")

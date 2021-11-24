@@ -265,10 +265,16 @@ class LoadData:
                 if norm_type == 1: # [0,1]
                     
                     if polar == False:
+                        print("Normalizing cartesian loc coords into range [0,1]...")
                         # regular normalization of cartesian xy [-11,11] to [0,1]
                         locs = self.normalize(locs, -(self.maxPeopleRange + 1), ((self.maxPeopleRange + 1)*2))
+                        # zero position (robot place) will take value 0.5
+                        # let's try to change 0.5 by 0
+                        #locs[locs == 0.5] = 0.0
+
                     else:
                         # polar r[0,11] to [0,1]
+                        print("Normalizing polar loc coords into range [0,1]...")
                         locs[:,:,0] = locs[:,:,0]/(self.maxPeopleRange + 1)
                         # polar phi[-pi,pi] to [0,1]
                         locs[:,:,1] = self.normalize(locs[:,:,1], -np.pi, 2*np.pi)
@@ -277,25 +283,27 @@ class LoadData:
                 elif norm_type == 2: # [-1,1]
                     if polar == False:
                         # normalization of cartesian xy [-11,11] to the range [-1,1]
+                        print("Normalizing cartesian loc coords into range [-1,1]...")
                         locs = self.normalizeCustom(locs, -(self.maxPeopleRange + 1), ((self.maxPeopleRange + 1)*2), -1, 1)
                     else:
                         # polar r[0,11] to [-1,1]
+                        print("Normalizing polar loc coords into range [-1,1]...")
                         locs[:,:,0] = self.normalizeCustom(locs[:,:,0], 0, (self.maxPeopleRange + 1), -1, 1)
                         # polar phi[-pi,pi] to [-1,1]
                         locs[:,:,1] = self.normalizeCustom(locs[:,:,1], -np.pi, 2*np.pi, -1, 1)
-                else:
-                    print("NORMALIZATION TYPE (", norm_type, ") NOT ALLOWED! Using [0,1]!!!")
-                    locs = self.normalize(locs, -(self.maxPeopleRange + 1), ((self.maxPeopleRange + 1)*2))
+                #else:
+                #    print("NORMALIZATION TYPE (", norm_type, ") NOT ALLOWED! Using [0,1]!!!")
+                #    locs = self.normalize(locs, -(self.maxPeopleRange + 1), ((self.maxPeopleRange + 1)*2))
             
-                
-                if polar == True:
-                    print("Localization data (r,phi) has been normalized", end='')
-                else:
-                    print("Localization data (x,y) has been normalized", end='')
-                if norm_type == 2:
-                    print("in the range [-1,1]")
-                else:
-                    print("in the range [-0,1]")
+                if norm_type > 0:
+                    if polar == True:
+                        print("Localization data (r,phi) has been normalized", end='')
+                    else:
+                        print("Localization data (x,y) has been normalized", end='')
+                    if norm_type == 2:
+                        print("in the range [-1,1]")
+                    else:
+                        print("in the range [-0,1]")
                 print("max x norm:", np.max(locs[:,:,0]), "min x norm:", np.min(locs[:,:,0]))
                 print("max y norm:", np.max(locs[:,:,1]), "min y norm:", np.min(locs[:,:,1]))
                 #print("ldata[0] normalized:", locs[0])
@@ -348,7 +356,7 @@ class LoadData:
 
 
 
-    def load_data(self, path, nranges, type=0):
+    def load_data(self, path, nranges, type=0, norm=True):
 
         # type = 0, scan range data
         # type = 1, binary label
@@ -376,7 +384,8 @@ class LoadData:
                 scan[np.isnan(scan)] = self.maxPeopleRange + 1
                 scan[scan > self.maxPeopleRange] = self.maxPeopleRange + 1
                 #Normalize
-                scan = scan/(self.maxPeopleRange + 1)
+                if norm == True:
+                    scan = scan/(self.maxPeopleRange + 1)
                 scan = scan.astype(np.float32)
                 if np.any(np.isnan(scan)):
                     print('Load_data. There is nan values in the scan!!!!!!!!')
@@ -402,11 +411,11 @@ class LoadData:
 
 
 
-    def join_data(self, x_data_path, y_data_path, nranges, binary_label=True):
+    def join_data(self, x_data_path, y_data_path, nranges, binary_label=True, norm=True):
 
         #x_data_path = os.path.join(directory_path, 'scans')
         print("Loading data from", x_data_path)
-        x_ids, x_ts, x_ranges = self.load_data(x_data_path, nranges, type=0)
+        x_ids, x_ts, x_ranges = self.load_data(x_data_path, nranges, type=0, norm=norm)
         print("Scan ranges has been normalized")
         print('x_ranges.shape:', x_ranges.shape)
         #x_data = np.array(x_ranges, dtype=float)
@@ -416,9 +425,9 @@ class LoadData:
         #y_data_path = os.path.join(directory_path, 'labels')
         print("Loading data from", y_data_path)
         if binary_label == True:
-            y_ids, y_ts, y_labels = self.load_data(y_data_path, nranges, type=1)
+            y_ids, y_ts, y_labels = self.load_data(y_data_path, nranges, type=1, norm=norm)
         else:
-            y_ids, y_ts, y_labels = self.load_data(y_data_path, nranges, type=2)
+            y_ids, y_ts, y_labels = self.load_data(y_data_path, nranges, type=2, norm=norm)
         #y_data = np.array(y_labels, dtype=int)
         y_data = y_labels
 
@@ -429,8 +438,12 @@ class LoadData:
     def join_class_and_loc_data(self, x_data_path, y_data_path, nr, norm_type=1, polar=False):
 
         print("Loading data from", x_data_path)
-        x_ids, x_ts, x_ranges = self.load_data(x_data_path, nr, type=0)
-        print("Scan ranges has been normalized ([0,1])")
+        if norm_type > 0:
+            x_ids, x_ts, x_ranges = self.load_data(x_data_path, nr, type=0, norm=True)
+            print("Scan ranges has been normalized!")
+        else:
+            x_ids, x_ts, x_ranges = self.load_data(x_data_path, nr, type=0, norm=False)
+        
         print('x_ranges.shape:', x_ranges.shape)
         x_data = x_ranges
 
@@ -1678,6 +1691,9 @@ class LoadData:
             # same number of ranges
             if numr == self.nPoints:
                 print("Data is already in the correct format!")
+                if data_normalized == False:
+                    # denormalize
+                    x_data = x_data * (self.maxPeopleRange + 1)
                 return x_data, y_data
 
             # different FoV - self.laserFoV > inputFoV 
@@ -1699,6 +1715,11 @@ class LoadData:
                     ydata = np.asarray(ydata, dtype=np.int8)
                 else:
                     ydata = np.asarray(ydata, dtype=np.flaot32)
+
+                # denormalize
+                if data_normalized == False:
+                    xdata = xdata * (self.maxPeopleRange + 1)
+
                 return xdata, ydata
 
 
@@ -1784,5 +1805,9 @@ class LoadData:
             ydata = np.asarray(ydata, dtype=np.int8)
         else:
             ydata = np.asarray(ydata, dtype=np.flaot32)
+
+        # denormalize
+        if data_normalized == False:
+            xdata = xdata * (self.maxPeopleRange + 1)
 
         return xdata, ydata
