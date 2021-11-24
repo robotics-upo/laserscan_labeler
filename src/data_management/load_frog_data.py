@@ -1693,6 +1693,7 @@ class LoadData:
                 print("Data is already in the correct format!")
                 if data_normalized == False:
                     # denormalize
+                    print("DENormalizing data..")
                     x_data = x_data * (self.maxPeopleRange + 1)
                 return x_data, y_data
 
@@ -1718,6 +1719,7 @@ class LoadData:
 
                 # denormalize
                 if data_normalized == False:
+                    print("DENormalizing data..")
                     xdata = xdata * (self.maxPeopleRange + 1)
 
                 return xdata, ydata
@@ -1808,6 +1810,7 @@ class LoadData:
 
         # denormalize
         if data_normalized == False:
+            print("DENormalizing data..")
             xdata = xdata * (self.maxPeopleRange + 1)
 
         return xdata, ydata

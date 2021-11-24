@@ -59,7 +59,7 @@ def merge_files(dataloader):
     else:
         y_data_path = os.path.join(path, 'class_and_loc_labels')
 
-    normalize = input('Do you want to normalize the data? Type "y" or "n":')
+    normalize = input('Do you want to normalize the data? Type "y" or "n": ')
     if(normalize == 'y' or normalize == "yes"):
         normalize = True
     else:
